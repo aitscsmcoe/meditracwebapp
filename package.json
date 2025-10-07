@@ -1,0 +1,31 @@
+{
+  "name": "meditrac-desktop",
+  "version": "0.1.0",
+  "main": "electron-main.js",
+  "scripts": {
+  "dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+  "build": "vite build",
+  "dist": "npm run build && electron-builder"
+},
+  "dependencies": {
+    "firebase": "^10.13.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.14.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.0.0",
+    "concurrently": "^8.2.0",
+    "electron": "^26.2.0",
+    "electron-builder": "^24.6.0",
+    "wait-on": "^7.0.1",
+    "vite": "^5.2.0"
+  },
+  "build": {
+    "appId": "com.meditrac.desktop",
+    "productName": "MediTrac",
+    "win": {
+      "target": ["nsis"]
+    }
+  }
+}
