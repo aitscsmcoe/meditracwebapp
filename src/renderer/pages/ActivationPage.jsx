@@ -1,42 +1,135 @@
 import React, { useState } from "react";
-import { collection, addDoc } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { adminDb } from "../services/firebaseAdmin";
 
-export default function ActivationPage({ setIsActivated }) {
+export default function ActivationPage({ setUserType }) {
   const [clinicName, setClinicName] = useState("");
   const [doctorName, setDoctorName] = useState("");
   const [email, setEmail] = useState("");
+  const [mobile, setMobile] = useState("");
   const [submitted, setSubmitted] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    await addDoc(collection(adminDb, "ActivationRequests"), {
-      clinicName,
-      doctorName,
-      email,
-      requestDate: new Date().toISOString(),
-      status: "Pending"
-    });
-    setSubmitted(true);
+
+    // Admin check (if admin email)
+    if (email.trim().toLowerCase() === "aitscsmcoe@gmail.com") {
+      setUserType("admin");
+      return;
+    }
+
+    try {
+      await addDoc(collection(adminDb, "ActivationRequests"), {
+        clinicName,
+        doctorName,
+        email,
+        mobile,
+        requestDate: serverTimestamp(), // ✅ store Firestore Timestamp
+        status: "Pending",
+      });
+      setSubmitted(true);
+    } catch (error) {
+      console.error("Error adding activation request:", error);
+      alert("Error sending activation request.");
+    }
   };
 
   if (submitted)
     return (
-      <div style={{ padding: 30 }}>
-        <h2>Activation Request Sent ✅</h2>
-        <p>Contact your app provider for the activation code.</p>
+      <div
+        style={{
+          padding: 40,
+          textAlign: "center",
+          fontFamily: "Segoe UI, sans-serif",
+        }}
+      >
+        <h2>✅ Activation Request Sent</h2>
+        <p>
+          Thank you, Dr. {doctorName}. Your request has been received.
+          <br />
+          Contact your app provider for your activation code.
+        </p>
       </div>
     );
 
   return (
-    <div style={{ padding: 30 }}>
-      <h2>App Activation</h2>
-      <form onSubmit={handleSubmit}>
-        <input placeholder="Clinic Name" value={clinicName} onChange={(e) => setClinicName(e.target.value)} /><br />
-        <input placeholder="Doctor Name" value={doctorName} onChange={(e) => setDoctorName(e.target.value)} /><br />
-        <input placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} /><br />
-        <button type="submit">Get Activation Code</button>
-      </form>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        height: "100vh",
+        fontFamily: "Segoe UI, sans-serif",
+        background: "#f3f6f9",
+      }}
+    >
+      <div
+        style={{
+          background: "white",
+          padding: 30,
+          borderRadius: 12,
+          boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
+          width: 400,
+          textAlign: "center",
+        }}
+      >
+        <h2>MediTrac Activation</h2>
+        <form onSubmit={handleSubmit}>
+          <input
+            placeholder="Clinic Name"
+            value={clinicName}
+            onChange={(e) => setClinicName(e.target.value)}
+            required
+            style={inputStyle}
+          />
+          <input
+            placeholder="Doctor Name"
+            value={doctorName}
+            onChange={(e) => setDoctorName(e.target.value)}
+            required
+            style={inputStyle}
+          />
+          <input
+            placeholder="Email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            style={inputStyle}
+          />
+          <input
+            placeholder="Mobile Number"
+            type="tel"
+            value={mobile}
+            onChange={(e) => setMobile(e.target.value)}
+            required
+            style={inputStyle}
+          />
+          <button type="submit" style={buttonStyle}>
+            Get Activation Code
+          </button>
+        </form>
+      </div>
     </div>
   );
 }
+
+const inputStyle = {
+  width: "100%",
+  marginBottom: 12,
+  padding: 10,
+  borderRadius: 8,
+  border: "1px solid #ccc",
+};
+
+const buttonStyle = {
+  width: "100%",
+  padding: 12,
+  background: "#1565c0",
+  color: "white",
+  border: "none",
+  borderRadius: 8,
+  cursor: "pointer",
+  fontSize: "1rem",
+};
