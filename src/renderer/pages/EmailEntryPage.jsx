@@ -1,98 +1,102 @@
-import React, { useState, useEffect } from "react";
-import { collection, getDocs, query, where } from "firebase/firestore";
-import { adminDb } from "../services/firebaseAdmin";
+// src/renderer/pages/EmailEntryPage.jsx
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
-export default function EmailEntryPage({ setUserType, setEmail }) {
-  const [inputEmail, setInputEmail] = useState("");
-  const [loading, setLoading] = useState(false);
+export default function EmailEntryPage() {
+  const [email, setEmail] = useState("");
+  const [message, setMessage] = useState("");
+  const navigate = useNavigate();
 
   const handleContinue = async (e) => {
     e.preventDefault();
-    setLoading(true);
-
-    const email = inputEmail.trim().toLowerCase();
-    setEmail(email);
-
-    if (email === "aitscsmcoe@gmail.com") {
-      setUserType("admin");
-      setLoading(false);
+    if (!email) {
+      setMessage("Please enter your email.");
       return;
     }
 
+    setMessage("Checking...");
+
     try {
-      // Check if doctor already registered
-      const q = query(
-        collection(adminDb, "DoctorsRegistered"),
-        where("email", "==", email)
-      );
-      const snapshot = await getDocs(q);
+      const adminEmail = "aitscsmcoe@gmail.com";
 
-      if (snapshot.empty) {
-        setUserType("activation"); // new doctor → activation flow
-      } else {
-        setUserType("doctor"); // existing doctor → login flow
+      if (email.trim().toLowerCase() === adminEmail.toLowerCase()) {
+        setMessage("Redirecting to admin login...");
+        setTimeout(() => navigate("/admin-login"), 1000);
+        return;
       }
-    } catch (err) {
-      console.error("Error checking email:", err);
-      alert("Error checking email.");
-    }
 
-    setLoading(false);
+      // For any other email, assume doctor flow
+      setMessage("Redirecting to doctor login...");
+      setTimeout(() => navigate("/doctor-login"), 1000);
+    } catch (err) {
+      console.error(err);
+      setMessage("Error verifying email. Try again.");
+    }
   };
 
   return (
-    <div style={container}>
-      <div style={box}>
-        <h2>MediTrac</h2>
-        <p style={{ color: "#555" }}>Enter your registered email address</p>
+    <div style={outer}>
+      <div style={card}>
+        <h2 style={{ color: "#1565c0", marginBottom: 12 }}>Welcome to MediTrac</h2>
+        <p style={{ marginBottom: 20, color: "#444" }}>
+          Please enter your email ID to continue.
+        </p>
+
         <form onSubmit={handleContinue}>
           <input
             type="email"
-            placeholder="Email ID"
-            value={inputEmail}
-            onChange={(e) => setInputEmail(e.target.value)}
+            placeholder="Enter your email ID"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
             required
-            style={inputStyle}
+            style={input}
           />
-          <button type="submit" style={buttonStyle} disabled={loading}>
-            {loading ? "Checking..." : "Continue"}
+          <button type="submit" style={btn}>
+            Continue
           </button>
         </form>
+
+        {message && <p style={{ marginTop: 15, color: "#555" }}>{message}</p>}
       </div>
     </div>
   );
 }
 
-const container = {
+// ---------- Styles ----------
+const outer = {
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
   height: "100vh",
-  background: "#f3f6f9",
+  background: "linear-gradient(120deg, #42a5f5, #90caf9)",
   fontFamily: "Segoe UI, sans-serif",
 };
-const box = {
+
+const card = {
   background: "white",
   padding: 30,
-  borderRadius: 10,
-  boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
+  borderRadius: 12,
+  boxShadow: "0 4px 10px rgba(0,0,0,0.1)",
+  width: 340,
   textAlign: "center",
-  width: 350,
 };
-const inputStyle = {
+
+const input = {
   width: "100%",
   padding: 10,
-  marginBottom: 12,
-  borderRadius: 8,
+  margin: "8px 0",
+  borderRadius: 6,
   border: "1px solid #ccc",
+  fontSize: 15,
 };
-const buttonStyle = {
+
+const btn = {
   width: "100%",
-  padding: 12,
   background: "#1565c0",
   color: "white",
   border: "none",
-  borderRadius: 8,
+  padding: 10,
+  borderRadius: 6,
   cursor: "pointer",
-  fontSize: "1rem",
+  fontSize: 15,
 };

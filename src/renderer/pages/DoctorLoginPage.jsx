@@ -1,96 +1,151 @@
+// src/renderer/pages/DoctorLoginPage.jsx
 import React, { useState } from "react";
+import { signInWithEmailAndPassword } from "firebase/auth";
 import { collection, getDocs, query, where } from "firebase/firestore";
-import { adminDb } from "../services/firebaseAdmin";
+import { adminAuth, adminDb } from "../services/firebaseAdmin";
 
-export default function DoctorLoginPage({ email }) {
+export default function DoctorLoginPage({ onLoginSuccess }) {
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [doctorData, setDoctorData] = useState(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    setMessage("Checking credentials...");
+    setLoading(true);
 
-    const q = query(
-      collection(adminDb, "DoctorsRegistered"),
-      where("email", "==", email)
-    );
-    const snapshot = await getDocs(q);
+    try {
+      const userCred = await signInWithEmailAndPassword(adminAuth, email, password);
+      console.log("✅ Doctor Auth success:", userCred.user.email);
 
-    if (snapshot.empty) {
-      alert("Doctor not found or not activated yet!");
-      return;
-    }
+      // Check doctor's status in Firestore
+      const q = query(collection(adminDb, "DoctorsRegistered"), where("email", "==", email));
+      const snapshot = await getDocs(q);
 
-    const data = snapshot.docs[0].data();
+      if (snapshot.empty) {
+        setMessage("❌ No registration found for this email.");
+        return;
+      }
 
-    if (data.password === password) {
-      setDoctorData(data);
-    } else {
-      alert("Incorrect password!");
+      const docData = snapshot.docs[0].data();
+      const status = docData.status || "Pending";
+
+      switch (status) {
+        case "Active":
+          setMessage("✅ Login successful. Redirecting...");
+          setTimeout(() => onLoginSuccess(email, docData), 1000);
+          break;
+        case "Pending":
+          setMessage("⏳ Your registration is pending admin approval.");
+          break;
+        case "Expired":
+          setMessage("⚠️ Your activation has expired. Please contact admin.");
+          break;
+        case "Removed":
+          setMessage("🚫 Your account has been removed by admin.");
+          break;
+        default:
+          setMessage("❌ Invalid account state. Contact admin.");
+      }
+    } catch (err) {
+      console.error("Login failed:", err);
+      setMessage("❌ Login failed. Check email/password.");
+    } finally {
+      setLoading(false);
     }
   };
 
-  if (doctorData)
-    return (
-      <div style={{ padding: 40 }}>
-        <h2>Welcome, Dr. {doctorData.doctorName}</h2>
-        <p>Clinic: {doctorData.clinicName}</p>
-        <p>Email: {doctorData.email}</p>
-      </div>
-    );
-
   return (
-    <div style={container}>
-      <div style={box}>
-        <h2>Doctor Login</h2>
-        <p>{email}</p>
+    <div style={outer}>
+      <div style={card}>
+        <h2 style={{ color: "#1565c0", marginBottom: 12 }}>Doctor Login</h2>
         <form onSubmit={handleLogin}>
           <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            type="email"
+            placeholder="Doctor email"
+            value={email}
             required
-            style={inputStyle}
+            onChange={(e) => setEmail(e.target.value)}
+            style={input}
           />
-          <button type="submit" style={buttonStyle}>
-            Login
+
+          {/* Password Input with Eye Icon */}
+          <div style={{ position: "relative" }}>
+            <input
+              type={showPassword ? "text" : "password"}
+              placeholder="Password"
+              value={password}
+              required
+              onChange={(e) => setPassword(e.target.value)}
+              style={{ ...input, paddingRight: 35 }}
+            />
+            <span
+              onClick={() => setShowPassword(!showPassword)}
+              style={eyeIcon}
+              title={showPassword ? "Hide Password" : "Show Password"}
+            >
+              {showPassword ? "🙈" : "👁️"}
+            </span>
+          </div>
+
+          <button type="submit" style={btn} disabled={loading}>
+            {loading ? "Please wait..." : "Login"}
           </button>
         </form>
+        <p style={{ marginTop: 10, color: "#444" }}>{message}</p>
       </div>
     </div>
   );
 }
 
-const container = {
+// ---------- Styles ----------
+const outer = {
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
   height: "100vh",
-  background: "#f3f6f9",
+  background: "linear-gradient(120deg, #42a5f5, #90caf9)",
   fontFamily: "Segoe UI, sans-serif",
 };
-const box = {
+
+const card = {
   background: "white",
   padding: 30,
-  borderRadius: 10,
-  boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
+  borderRadius: 12,
+  boxShadow: "0 4px 10px rgba(0,0,0,0.1)",
+  width: 340,
   textAlign: "center",
-  width: 350,
 };
-const inputStyle = {
+
+const input = {
   width: "100%",
   padding: 10,
-  marginBottom: 12,
-  borderRadius: 8,
+  margin: "8px 0",
+  borderRadius: 6,
   border: "1px solid #ccc",
+  fontSize: 15,
 };
-const buttonStyle = {
+
+const btn = {
   width: "100%",
-  padding: 12,
   background: "#1565c0",
   color: "white",
   border: "none",
-  borderRadius: 8,
+  padding: 10,
+  borderRadius: 6,
   cursor: "pointer",
-  fontSize: "1rem",
+  fontSize: 15,
+};
+
+const eyeIcon = {
+  position: "absolute",
+  right: 10,
+  top: "50%",
+  transform: "translateY(-50%)",
+  cursor: "pointer",
+  color: "#666",
+  fontSize: 14,
+  userSelect: "none",
 };

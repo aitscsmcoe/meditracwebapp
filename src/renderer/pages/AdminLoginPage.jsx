@@ -1,205 +1,167 @@
+// src/renderer/pages/AdminLoginPage.jsx
 import React, { useState } from "react";
-import {
-  collection,
-  query,
-  where,
-  getDocs,
-  updateDoc,
-  doc,
-} from "firebase/firestore";
-import {
-  signInWithEmailAndPassword,
-  fetchSignInMethodsForEmail,
-  createUserWithEmailAndPassword,
-  sendPasswordResetEmail,
-  signOut,
-} from "firebase/auth";
-import { adminDb, adminAuth } from "../services/firebaseAdmin";
-import AdminDashboard from "./AdminDashboard";
+import { signInWithEmailAndPassword, signOut } from "firebase/auth";
+import { adminAuth } from "../services/firebaseAdmin";
+import { useNavigate } from "react-router-dom";
 
-export default function AdminLoginPage({ email }) {
+export default function AdminLoginPage() {
+  const [email, setEmail] = useState("aitscsmcoe@gmail.com");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
-  const [loggedIn, setLoggedIn] = useState(false);
-  const [error, setError] = useState("");
-  const [isForgot, setIsForgot] = useState(false);
-  const [resetLoading, setResetLoading] = useState(false);
-
-  // Fetch admin doc
-  const fetchAdminDoc = async () => {
-    const q = query(collection(adminDb, "Admins"), where("email", "==", email));
-    const snap = await getDocs(q);
-    if (snap.empty) return null;
-    return { id: snap.docs[0].id, data: snap.docs[0].data() };
-  };
+  const navigate = useNavigate();
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    setError("");
+    if (!email || !password) {
+      setMessage("Please enter both email and password.");
+      return;
+    }
+
     setLoading(true);
+    setMessage("Authenticating...");
 
     try {
-      // 1️⃣ Try Firebase Auth first
-      try {
-        const userCred = await signInWithEmailAndPassword(adminAuth, email, password);
-        console.log("✅ Firebase Auth login success:", userCred.user.email);
+      const cred = await signInWithEmailAndPassword(adminAuth, email, password);
+      console.log("✅ Firebase Auth login success:", cred.user.email);
 
-        // Sync Firestore password
-        const adminDoc = await fetchAdminDoc();
-        if (adminDoc) {
-          await updateDoc(doc(adminDb, "Admins", adminDoc.id), {
-            password: password,
-          });
-        }
-
-        setLoggedIn(true);
-        setLoading(false);
-        return;
-      } catch (authErr) {
-        console.warn("Firebase Auth login failed:", authErr.message);
-      }
-
-      // 2️⃣ Fallback: Check Firestore directly
-      const adminDoc = await fetchAdminDoc();
-      if (!adminDoc) throw new Error("Admin not found in Firestore.");
-
-      const stored = adminDoc.data.password;
-      if (stored.trim() === password.trim()) {
-        console.log("✅ Firestore password match");
-        setLoggedIn(true);
+      if (cred.user.email === "aitscsmcoe@gmail.com") {
+        setMessage("✅ Login successful. Redirecting...");
+        setTimeout(() => navigate("/admin-dashboard"), 800);
       } else {
-        setError("Incorrect password!");
+        setMessage("🚫 You are not authorized as admin.");
       }
-    } catch (err) {
-      console.error("Error in login flow:", err);
-      setError("Login failed. Check console for details.");
+    } catch (error) {
+      console.error("Firebase Auth login failed:", error);
+      if (error.code === "auth/invalid-credential" || error.code === "auth/wrong-password") {
+        setMessage("❌ Invalid email or password.");
+      } else if (error.code === "auth/user-not-found") {
+        setMessage("❌ No admin account found with this email.");
+      } else {
+        setMessage(`❌ ${error.message}`);
+      }
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
-  const handleSendResetEmail = async () => {
-    setResetLoading(true);
-    setError("");
-
+  const handleLogout = async () => {
     try {
-      // Check if admin user exists in Auth
-      const methods = await fetchSignInMethodsForEmail(adminAuth, email);
-      if (methods.length === 0) {
-        console.log("No Auth user found, creating one...");
-        const tmpPass = "Tmp@" + Math.floor(100000 + Math.random() * 900000);
-        await createUserWithEmailAndPassword(adminAuth, email, tmpPass);
-        await signOut(adminAuth);
-      }
-
-      await sendPasswordResetEmail(adminAuth, email);
-      alert(`✅ Password reset link sent to ${email}. Check Inbox or Spam.`);
-      setIsForgot(false);
-    } catch (err) {
-      console.error("Error sending reset email:", err);
-      setError("Failed to send reset email. See console for details.");
+      await signOut(adminAuth);
+      localStorage.clear();
+      navigate("/");
+    } catch (error) {
+      console.error("Logout failed:", error);
+      alert("Error while logging out.");
     }
-
-    setResetLoading(false);
   };
-
-  if (loggedIn) return <AdminDashboard />;
 
   return (
-    <div style={container}>
-      <div style={box}>
-        <h2>Admin Login</h2>
-        <p style={{ color: "#555" }}>{email}</p>
+    <div style={outer}>
+      <div style={card}>
+        <h2 style={{ color: "#1565c0" }}>Admin Login</h2>
+        <form onSubmit={handleLogin}>
+          <input
+            type="email"
+            placeholder="Admin email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            style={input}
+            required
+          />
 
-        {!isForgot ? (
-          <>
-            <form onSubmit={handleLogin}>
-              <input
-                type="password"
-                placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                style={inputStyle}
-              />
-              <button type="submit" style={buttonStyle} disabled={loading}>
-                {loading ? "Logging in..." : "Login"}
-              </button>
-            </form>
-
-            <p
-              style={linkStyle}
-              onClick={() => setIsForgot(true)}
+          {/* Password Input with Eye Icon */}
+          <div style={{ position: "relative" }}>
+            <input
+              type={showPassword ? "text" : "password"}
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              style={{ ...input, paddingRight: 35 }}
+              required
+            />
+            <span
+              onClick={() => setShowPassword(!showPassword)}
+              style={eyeIcon}
+              title={showPassword ? "Hide Password" : "Show Password"}
             >
-              Forgot Password?
-            </p>
+              {showPassword ? "🙈" : "👁️"}
+            </span>
+          </div>
 
-            {error && <p style={{ color: "red", marginTop: 10 }}>{error}</p>}
-          </>
-        ) : (
-          <>
-            <h3>Reset Password</h3>
-            <p style={{ fontSize: 13, color: "#555" }}>
-              A password reset link will be sent to <strong>{email}</strong>.
-            </p>
+          <button type="submit" disabled={loading} style={btn}>
+            {loading ? "Please wait..." : "Login"}
+          </button>
+        </form>
 
-            <button
-              style={buttonStyle}
-              onClick={handleSendResetEmail}
-              disabled={resetLoading}
-            >
-              {resetLoading ? "Sending..." : "Send Reset Email"}
-            </button>
-
-            <p
-              style={linkStyle}
-              onClick={() => setIsForgot(false)}
-            >
-              Back to Login
-            </p>
-          </>
-        )}
+        {message && <p style={{ marginTop: 12, color: "#444", fontSize: 14 }}>{message}</p>}
+        <hr style={{ margin: "20px 0" }} />
+        <button onClick={handleLogout} style={logoutBtn}>
+          Logout
+        </button>
       </div>
     </div>
   );
 }
 
-const container = {
+// ---------- Styles ----------
+const outer = {
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
   height: "100vh",
-  background: "#f3f6f9",
+  background: "linear-gradient(120deg, #42a5f5, #90caf9)",
   fontFamily: "Segoe UI, sans-serif",
 };
-const box = {
+
+const card = {
   background: "white",
   padding: 30,
-  borderRadius: 10,
-  boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
+  borderRadius: 12,
+  boxShadow: "0 4px 10px rgba(0,0,0,0.1)",
+  width: 340,
   textAlign: "center",
-  width: 420,
 };
-const inputStyle = {
+
+const input = {
   width: "100%",
   padding: 10,
-  marginBottom: 12,
-  borderRadius: 8,
+  margin: "8px 0",
+  borderRadius: 6,
   border: "1px solid #ccc",
+  fontSize: 15,
 };
-const buttonStyle = {
+
+const btn = {
   width: "100%",
-  padding: 12,
   background: "#1565c0",
   color: "white",
   border: "none",
-  borderRadius: 8,
+  padding: 10,
+  borderRadius: 6,
   cursor: "pointer",
-  fontSize: "1rem",
+  fontSize: 15,
 };
-const linkStyle = {
-  color: "#1565c0",
+
+const logoutBtn = {
+  width: "100%",
+  background: "#ef5350",
+  color: "white",
+  border: "none",
+  padding: 10,
+  borderRadius: 6,
   cursor: "pointer",
-  textDecoration: "underline",
-  marginTop: 10,
+  fontSize: 15,
+};
+
+const eyeIcon = {
+  position: "absolute",
+  right: 10,
+  top: "50%",
+  transform: "translateY(-50%)",
+  cursor: "pointer",
+  color: "#666",
+  fontSize: 14,
+  userSelect: "none",
 };
