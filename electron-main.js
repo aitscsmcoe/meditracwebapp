@@ -1,96 +1,66 @@
 ﻿// electron-main.js
-const { app, BrowserWindow } = require("electron");
+const { app, BrowserWindow, ipcMain } = require("electron");
 const path = require("path");
-const http = require("http");
 
+// ✅ Keep a global reference to the window
 let mainWindow;
 
-const VITE_DEV_SERVER = "http://localhost:5173";
-const isDev = !app.isPackaged;
-
-// Polls the Vite dev server until it’s up (dev only)
-function waitForVite(url, timeoutMs = 15000, intervalMs = 300) {
-  return new Promise((resolve, reject) => {
-    const start = Date.now();
-    const tick = () => {
-      const req = http.get(url, (res) => {
-        if (res.statusCode >= 200 && res.statusCode < 500) {
-          res.resume(); // drain
-          return resolve();
-        }
-        res.resume();
-        if (Date.now() - start > timeoutMs) reject(new Error("Vite server timeout"));
-        else setTimeout(tick, intervalMs);
-      });
-      req.on("error", () => {
-        if (Date.now() - start > timeoutMs) reject(new Error("Vite server timeout"));
-        else setTimeout(tick, intervalMs);
-      });
-    };
-    tick();
-  });
-}
-
+// ✅ Create app window
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
-    show: false, // show after load to avoid white flash
+    show: false, // prevent flicker until ready
     webPreferences: {
       preload: path.join(__dirname, "electron-preload.js"),
       contextIsolation: true,
-      nodeIntegration: false,
+      nodeIntegration: false, // more secure
+      sandbox: false,
     },
   });
 
-  // Helpful logging for blank screen debugging
-  mainWindow.webContents.on("did-finish-load", () => {
-    console.log("✅ Renderer finished loading");
-    mainWindow.show();
-  });
-  mainWindow.webContents.on("did-fail-load", (e, code, desc, url, isMainFrame) => {
-    console.error("❌ did-fail-load:", { code, desc, url, isMainFrame });
-    mainWindow.loadURL(
-      "data:text/html,<h2>Failed to load the app.</h2><p>Check console logs.</p>"
-    );
-  });
-
-  if (isDev) {
-    // DEV: wait for Vite then load URL
-    waitForVite(VITE_DEV_SERVER)
-      .then(() => {
-        console.log("🔌 Vite is up — loading dev server…");
-        return mainWindow.loadURL(VITE_DEV_SERVER);
-      })
-      .then(() => {
-        // optional devtools
-        mainWindow.webContents.openDevTools({ mode: "detach" });
-      })
-      .catch((err) => {
-        console.error("❌ Could not reach Vite dev server:", err.message);
-        mainWindow.loadURL(
-          "data:text/html,<h2>Dev server not reachable.</h2><p>Is Vite running on 5173?</p>"
-        );
-        mainWindow.show();
-      });
+  // ✅ Load appropriate content
+  if (!app.isPackaged) {
+    // Dev mode → use Vite dev server
+    mainWindow.loadURL("http://localhost:5173");
   } else {
-    // PROD: load the built index.html
-    const indexPath = path.join(__dirname, "dist", "index.html");
-    console.log("📦 Loading production file:", indexPath);
-    mainWindow
-      .loadFile(indexPath)
-      .catch((err) => {
-        console.error("❌ Failed to load production build:", err);
-        mainWindow.loadURL(
-          "data:text/html,<h2>Failed to load production build.</h2><p>Check dist/index.html exists.</p>"
-        );
-        mainWindow.show();
-      });
+    // Production → use built files
+    mainWindow.loadFile(path.join(__dirname, "dist", "index.html"));
   }
 
-  mainWindow.on("closed", () => (mainWindow = null));
+  // ✅ Show only when ready
+  mainWindow.once("ready-to-show", () => {
+    mainWindow.show();
+  });
+
+  // ✅ (Optional) Uncomment this line ONLY when debugging dev mode
+  // mainWindow.webContents.openDevTools({ mode: "detach" });
+
+  // ✅ Handle window closed
+  mainWindow.on("closed", () => {
+    mainWindow = null;
+  });
 }
 
+// ✅ Handle events from Renderer
+ipcMain.on("message-from-ui", (event, msg) => {
+  console.log("📨 Message from renderer:", msg);
+});
+
+// ✅ Print handler (for future use)
+ipcMain.on("print-content", (event, content) => {
+  const printWin = new BrowserWindow({ show: false });
+  printWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(content)}`);
+  printWin.webContents.on("did-finish-load", () => {
+    printWin.webContents.print({}, (success) => {
+      if (!success) console.error("❌ Print failed");
+      printWin.close();
+    });
+  });
+});
+
+
+// ✅ App Lifecycle Events
 app.whenReady().then(() => {
   createWindow();
 
@@ -99,6 +69,7 @@ app.whenReady().then(() => {
   });
 });
 
+// ✅ Close app completely (Windows/Linux)
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });

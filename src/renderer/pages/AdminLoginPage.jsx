@@ -1,6 +1,10 @@
 // src/renderer/pages/AdminLoginPage.jsx
 import React, { useState } from "react";
-import { signInWithEmailAndPassword, signOut } from "firebase/auth";
+import {
+  signInWithEmailAndPassword,
+  sendPasswordResetEmail,
+  signOut,
+} from "firebase/auth";
 import { adminAuth } from "../services/firebaseAdmin";
 import { useNavigate } from "react-router-dom";
 
@@ -10,8 +14,10 @@ export default function AdminLoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [isResetMode, setIsResetMode] = useState(false);
   const navigate = useNavigate();
 
+  // ✅ Admin Login Handler
   const handleLogin = async (e) => {
     e.preventDefault();
     if (!email || !password) {
@@ -34,7 +40,10 @@ export default function AdminLoginPage() {
       }
     } catch (error) {
       console.error("Firebase Auth login failed:", error);
-      if (error.code === "auth/invalid-credential" || error.code === "auth/wrong-password") {
+      if (
+        error.code === "auth/invalid-credential" ||
+        error.code === "auth/wrong-password"
+      ) {
         setMessage("❌ Invalid email or password.");
       } else if (error.code === "auth/user-not-found") {
         setMessage("❌ No admin account found with this email.");
@@ -46,6 +55,24 @@ export default function AdminLoginPage() {
     }
   };
 
+  // ✅ Password Reset Handler
+  const handleSendReset = async () => {
+    if (!email) {
+      setMessage("Please enter your email to reset password.");
+      return;
+    }
+
+    try {
+      await sendPasswordResetEmail(adminAuth, email);
+      setMessage("📩 Password reset link sent to your email.");
+      setIsResetMode(false);
+    } catch (error) {
+      console.error("Password reset failed:", error);
+      setMessage("❌ Failed to send reset email. Check email or try again.");
+    }
+  };
+
+  // ✅ Logout Handler
   const handleLogout = async () => {
     try {
       await signOut(adminAuth);
@@ -61,41 +88,87 @@ export default function AdminLoginPage() {
     <div style={outer}>
       <div style={card}>
         <h2 style={{ color: "#1565c0" }}>Admin Login</h2>
-        <form onSubmit={handleLogin}>
-          <input
-            type="email"
-            placeholder="Admin email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            style={input}
-            required
-          />
 
-          {/* Password Input with Eye Icon */}
-          <div style={{ position: "relative" }}>
+        {/* Reset Password Mode */}
+        {isResetMode ? (
+          <>
+            <p style={{ fontSize: 14, color: "#555" }}>
+              Enter your admin email to receive a reset link.
+            </p>
             <input
-              type={showPassword ? "text" : "password"}
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              style={{ ...input, paddingRight: 35 }}
+              type="email"
+              placeholder="Admin email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              style={input}
               required
             />
-            <span
-              onClick={() => setShowPassword(!showPassword)}
-              style={eyeIcon}
-              title={showPassword ? "Hide Password" : "Show Password"}
+            <button onClick={handleSendReset} style={btn}>
+              Send Reset Link
+            </button>
+            <button
+              onClick={() => setIsResetMode(false)}
+              style={{ ...btn, background: "#90a4ae", marginTop: 8 }}
             >
-              {showPassword ? "🙈" : "👁️"}
-            </span>
-          </div>
+              Back to Login
+            </button>
+          </>
+        ) : (
+          // Login Form
+          <form onSubmit={handleLogin}>
+            <input
+              type="email"
+              placeholder="Admin email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              style={input}
+              required
+            />
 
-          <button type="submit" disabled={loading} style={btn}>
-            {loading ? "Please wait..." : "Login"}
-          </button>
-        </form>
+            <div style={{ position: "relative" }}>
+              <input
+                type={showPassword ? "text" : "password"}
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                style={{ ...input, paddingRight: 35 }}
+                required
+              />
+              <span
+                onClick={() => setShowPassword(!showPassword)}
+                style={eyeIcon}
+                title={showPassword ? "Hide Password" : "Show Password"}
+              >
+                {showPassword ? "🙈" : "👁️"}
+              </span>
+            </div>
 
-        {message && <p style={{ marginTop: 12, color: "#444", fontSize: 14 }}>{message}</p>}
+            <button type="submit" disabled={loading} style={btn}>
+              {loading ? "Please wait..." : "Login"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsResetMode(true)}
+              style={{
+                width: "100%",
+                marginTop: 10,
+                color: "#1565c0",
+                background: "transparent",
+                border: "none",
+                cursor: "pointer",
+                textDecoration: "underline",
+              }}
+            >
+              Forgot Password?
+            </button>
+          </form>
+        )}
+
+        {message && (
+          <p style={{ marginTop: 12, color: "#444", fontSize: 14 }}>{message}</p>
+        )}
+
         <hr style={{ margin: "20px 0" }} />
         <button onClick={handleLogout} style={logoutBtn}>
           Logout

@@ -7,6 +7,7 @@ import DoctorLoginPage from "./pages/DoctorLoginPage";
 import DoctorDashboard from "./pages/DoctorDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 import DoctorActivationPage from "./pages/DoctorActivationPage"; // (placeholder for now)
+import DoctorProfileSetup from "./pages/DoctorProfileSetup"; // new - doctor completes profile & requests activation
 
 export default function App() {
   return (
@@ -23,6 +24,9 @@ export default function App() {
         <Route path="/doctor-login" element={<DoctorLoginPageWrapper />} />
         <Route path="/doctor-dashboard" element={<DoctorDashboard />} />
         <Route path="/doctor-activation" element={<DoctorActivationPage />} />
+
+        {/* New: doctor profile setup (complete profile + request activation) */}
+        <Route path="/doctor-setup" element={<DoctorProfileSetup />} />
       </Routes>
     </Router>
   );
@@ -30,6 +34,7 @@ export default function App() {
 
 /**
  * Wrapper so we can pass navigation + success handler easily
+ * (left unchanged so it continues to work with your existing DoctorLoginPage)
  */
 function DoctorLoginPageWrapper() {
   const navigate = useNavigate();
