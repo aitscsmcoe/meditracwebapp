@@ -74,15 +74,24 @@ export default function AdminLoginPage() {
 
   // ✅ Logout Handler
   const handleLogout = async () => {
-    try {
-      await signOut(adminAuth);
-      localStorage.clear();
-      navigate("/");
-    } catch (error) {
-      console.error("Logout failed:", error);
-      alert("Error while logging out.");
+  try {
+    await signOut(adminAuth); // or use doctorAuth if you have separate
+    localStorage.clear();
+    sessionStorage.clear();
+
+    // For Electron reload
+    if (window?.location) {
+      window.location.replace("/"); // redirect to email entry page
+      setTimeout(() => {
+        window.location.reload(); // hard reload after short delay
+      }, 100);
     }
-  };
+  } catch (err) {
+    console.error("Logout failed:", err);
+    alert("Error while logging out. Please restart the app manually.");
+  }
+};
+
 
   return (
     <div style={outer}>
