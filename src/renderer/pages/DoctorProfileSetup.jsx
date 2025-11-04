@@ -8,6 +8,7 @@ import {
   collection,
   serverTimestamp,
   Timestamp,
+  deleteDoc,
 } from "firebase/firestore";
 import { adminDb, adminAuth } from "../services/firebaseAdmin";
 import { useNavigate } from "react-router-dom";
@@ -28,6 +29,9 @@ export default function DoctorProfileSetup() {
     doctorAddress: "",
     mobile: "",
     email: user?.email || "",
+    degree: "",
+    specialization: "",
+    experienceYears: "",
     status: "Registered",
     registrationDate: null,
   });
@@ -71,6 +75,9 @@ export default function DoctorProfileSetup() {
           clinicAddress: data.clinicAddress || "",
           doctorAddress: data.doctorAddress || "",
           mobile: data.mobile || "",
+          degree: data.degree || "",
+          specialization: data.specialization || "",
+          experienceYears: data.experienceYears || "",
           status: data.status || "Registered",
           registrationDate: data.registrationDate || data.createdAt || null,
         }));
@@ -120,8 +127,11 @@ export default function DoctorProfileSetup() {
         clinicAddress: form.clinicAddress,
         doctorAddress: form.doctorAddress,
         mobile: form.mobile,
+        degree: form.degree,
+        specialization: form.specialization,
+        experienceYears: form.experienceYears,
       });
-      setMessage("Profile saved.");
+      setMessage("Profile saved successfully.");
     } catch (err) {
       console.error("SaveProfile:", err);
       setMessage("Failed to save profile.");
@@ -130,23 +140,25 @@ export default function DoctorProfileSetup() {
     }
   };
 
-  // Request activation: set status="Requested" and create ActivationRequests entry
+  // Request activation
   const handleRequestActivation = async () => {
     if (!user?.email) return setMessage("Not authenticated.");
-    if (!form.doctorName || !form.clinicName || !form.mobile) {
-      return setMessage("Please fill Doctor Name, Clinic Name and Mobile before requesting activation.");
+    if (!form.doctorName || !form.clinicName || !form.mobile || !form.degree || !form.specialization) {
+      return setMessage("Please fill all professional and clinic details before requesting activation.");
     }
     setSaving(true);
     setMessage("");
     try {
       const docRef = doc(adminDb, "DoctorsRegistered", user.email);
-      // update profile fields + status only
       await updateDoc(docRef, {
         doctorName: form.doctorName,
         clinicName: form.clinicName,
         clinicAddress: form.clinicAddress,
         doctorAddress: form.doctorAddress,
         mobile: form.mobile,
+        degree: form.degree,
+        specialization: form.specialization,
+        experienceYears: form.experienceYears,
         status: "Requested",
       });
 
@@ -157,12 +169,15 @@ export default function DoctorProfileSetup() {
         doctorName: form.doctorName,
         clinicName: form.clinicName,
         mobile: form.mobile,
+        degree: form.degree,
+        specialization: form.specialization,
+        experienceYears: form.experienceYears,
         requestedAt: Timestamp.fromDate(new Date()),
         status: "Pending",
       });
 
       setForm((p) => ({ ...p, status: "Requested" }));
-      setMessage("Activation requested. Please wait for admin approval and use Refresh to check status.");
+      setMessage("Activation requested. Please wait for admin approval.");
     } catch (err) {
       console.error("RequestActivation:", err);
       setMessage("Failed to request activation. See console.");
@@ -171,7 +186,6 @@ export default function DoctorProfileSetup() {
     }
   };
 
-  // Refresh: re-read record and redirect if Active
   const handleRefresh = async () => {
     setChecking(true);
     setMessage("Refreshing status...");
@@ -193,7 +207,6 @@ export default function DoctorProfileSetup() {
     }
   };
 
-  // Logout
   const handleLogout = async () => {
     try {
       await signOut(adminAuth);
@@ -205,7 +218,7 @@ export default function DoctorProfileSetup() {
     }
   };
 
-  if (loading) {
+  if (loading)
     return (
       <div style={outer}>
         <div style={card}>
@@ -213,7 +226,6 @@ export default function DoctorProfileSetup() {
         </div>
       </div>
     );
-  }
 
   return (
     <div style={outer}>
@@ -224,16 +236,19 @@ export default function DoctorProfileSetup() {
             <button onClick={handleRefresh} style={btn} disabled={checking}>
               {checking ? "Checking..." : "Refresh"}
             </button>
-            <button onClick={handleLogout} style={btnDanger}>
-              Logout
-            </button>
+            <button onClick={handleLogout} style={btnDanger}>Logout</button>
           </div>
         </div>
 
-        <p style={{ color: "#444" }}>Fill clinic & contact details before requesting activation.</p>
+        <p style={{ color: "#444" }}>
+          Fill clinic, professional & contact details before requesting activation.
+        </p>
 
         <div style={{ display: "grid", gap: 8 }}>
           <input style={input} placeholder="Doctor Name" value={form.doctorName} onChange={(e) => onChange("doctorName", e.target.value)} />
+          <input style={input} placeholder="Degree (e.g. MBBS, MD)" value={form.degree} onChange={(e) => onChange("degree", e.target.value)} />
+          <input style={input} placeholder="Specialization (e.g. Pediatrics, Cardiology)" value={form.specialization} onChange={(e) => onChange("specialization", e.target.value)} />
+          <input style={input} placeholder="Experience (Years)" type="number" value={form.experienceYears} onChange={(e) => onChange("experienceYears", e.target.value)} />
           <input style={input} placeholder="Clinic Name" value={form.clinicName} onChange={(e) => onChange("clinicName", e.target.value)} />
           <input style={input} placeholder="Clinic Address" value={form.clinicAddress} onChange={(e) => onChange("clinicAddress", e.target.value)} />
           <input style={input} placeholder="Doctor Address" value={form.doctorAddress} onChange={(e) => onChange("doctorAddress", e.target.value)} />
@@ -244,8 +259,11 @@ export default function DoctorProfileSetup() {
           <button onClick={handleSaveProfile} disabled={saving} style={btn}>
             {saving ? "Saving..." : "Save Profile"}
           </button>
-
-          <button onClick={handleRequestActivation} disabled={saving || form.status === "Requested"} style={btnPrimary} title={form.status === "Requested" ? "Already requested" : ""}>
+          <button
+            onClick={handleRequestActivation}
+            disabled={saving || form.status === "Requested"}
+            style={btnPrimary}
+          >
             {saving ? "Please wait..." : form.status === "Requested" ? "Requested" : "Request Activation"}
           </button>
         </div>
@@ -261,7 +279,6 @@ export default function DoctorProfileSetup() {
   );
 }
 
-/* ---------- Styles ---------- */
 const outer = { fontFamily: "Segoe UI, sans-serif", background: "#f4f7fc", minHeight: "100vh", padding: 30 };
 const card = { maxWidth: 820, margin: "20px auto", background: "white", padding: 20, borderRadius: 10, boxShadow: "0 6px 18px rgba(0,0,0,0.08)" };
 const input = { width: "100%", padding: "10px 12px", borderRadius: 6, border: "1px solid #ccc", fontSize: 14 };

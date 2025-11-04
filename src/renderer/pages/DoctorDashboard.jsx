@@ -5,8 +5,9 @@ import {
   getDoc,
   updateDoc,
   serverTimestamp,
-  collection,
   getDocs,
+  collection as fsCollection,
+  Timestamp,
 } from "firebase/firestore";
 import { adminDb, adminAuth } from "../services/firebaseAdmin";
 import { signOut } from "firebase/auth";
@@ -26,19 +27,24 @@ export default function DoctorDashboard() {
   const [message, setMessage] = useState("");
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+
   const [cfgText, setCfgText] = useState("");
-  const [cfgStatus, setCfgStatus] = useState("idle");
+  const [cfgStatus, setCfgStatus] = useState("idle"); // idle | ok | error
   const [cfgError, setCfgError] = useState("");
   const cfgRef = useRef(null);
 
+  // doctor profile form (now includes degree/specialization/experienceYears)
   const [form, setForm] = useState({
     mobile: "",
     clinicName: "",
     clinicAddress: "",
     doctorAddress: "",
+    degree: "",
+    specialization: "",
+    experienceYears: "",
   });
 
-  // Load doctor data
+  // ---------- Load doctor ----------
   const loadDoctor = useCallback(async () => {
     if (!doctorEmail) return;
     try {
@@ -52,16 +58,17 @@ export default function DoctorDashboard() {
           clinicName: data.clinicName || "",
           clinicAddress: data.clinicAddress || "",
           doctorAddress: data.doctorAddress || "",
+          degree: data.degree || "",
+          specialization: data.specialization || "",
+          experienceYears: data.experienceYears || "",
         });
         setCfgText(
-          data.doctorFirebaseConfig
-            ? JSON.stringify(data.doctorFirebaseConfig, null, 2)
-            : ""
+          data.doctorFirebaseConfig ? JSON.stringify(data.doctorFirebaseConfig, null, 2) : ""
         );
         setCfgStatus(data.doctorDbReady ? "ok" : "idle");
       }
     } catch (err) {
-      console.error("Error loading doctor data:", err);
+      console.error("Error loading doctor:", err);
     }
   }, [doctorEmail]);
 
@@ -70,18 +77,29 @@ export default function DoctorDashboard() {
   }, [loadDoctor]);
 
   const fmt = (v) =>
-    v && v.seconds ? dayjs(v.seconds * 1000).format("DD MMM YYYY") : "-";
+    v && (v instanceof Timestamp || v?.seconds)
+      ? dayjs((v instanceof Timestamp ? v.toDate() : new Date(v.seconds * 1000))).format(
+          "DD MMM YYYY"
+        )
+      : "-";
 
-  // Save doctor profile
+  // ---------- Save profile ----------
   const handleSaveProfile = async () => {
+    if (!doctorEmail) return;
     try {
       setSaving(true);
       await updateDoc(doc(adminDb, "DoctorsRegistered", doctorEmail), {
-        ...form,
+        mobile: form.mobile || "",
+        clinicName: form.clinicName || "",
+        clinicAddress: form.clinicAddress || "",
+        doctorAddress: form.doctorAddress || "",
+        degree: form.degree || "",
+        specialization: form.specialization || "",
+        experienceYears: form.experienceYears || "",
         updatedAt: serverTimestamp(),
       });
       setEditing(false);
-      setMessage("✅ Profile updated successfully.");
+      setMessage("✅ Profile updated.");
       await loadDoctor();
     } catch (e) {
       console.error(e);
@@ -91,7 +109,7 @@ export default function DoctorDashboard() {
     }
   };
 
-  // Parse Firebase config
+  // ---------- Config parsing ----------
   const parseConfig = () => {
     try {
       return JSON.parse(cfgText);
@@ -100,20 +118,21 @@ export default function DoctorDashboard() {
     }
   };
 
-  // Test Firestore connection
+  // ---------- Test Firestore connection ----------
   const handleTestConnection = async () => {
     const cfg = parseConfig();
     if (!cfg) {
-      setCfgError("Invalid JSON format");
+      setCfgError("Invalid JSON format.");
+      setCfgStatus("error");
       return;
     }
-
     try {
       const appName = `meditrac-doc-${cfg.projectId}`;
       const existing = getApps().find((a) => a.name === appName);
       const app = existing || initializeApp(cfg, appName);
       const fs = getDoctorFs(app);
 
+      // Lightweight read from diagnostics collection
       await getDocs(docCollection(fs, "_connection_test"));
       setCfgStatus("ok");
       setCfgError("");
@@ -121,11 +140,11 @@ export default function DoctorDashboard() {
     } catch (err) {
       console.error("Connection failed:", err);
       setCfgStatus("error");
-      setCfgError("❌ Firestore connection test failed. Check rules or config.");
+      setCfgError("❌ Connection failed. Check rules or config.");
     }
   };
 
-  // Save config to DB
+  // ---------- Save config to Admin DB ----------
   const handleSaveConfig = async () => {
     const cfg = parseConfig();
     if (!cfg) {
@@ -137,6 +156,7 @@ export default function DoctorDashboard() {
       await updateDoc(doc(adminDb, "DoctorsRegistered", doctorEmail), {
         doctorFirebaseConfig: cfg,
         doctorDbReady: cfgStatus === "ok",
+        updatedAt: serverTimestamp(),
       });
       localStorage.setItem("doctorFirebaseConfig", JSON.stringify(cfg));
       setMessage("✅ Firebase configuration saved.");
@@ -147,7 +167,7 @@ export default function DoctorDashboard() {
     }
   };
 
-  // Firestore Instance
+  // ---------- Firestore instance for DoctorPatients ----------
   const doctorFs = useMemo(() => {
     try {
       const raw = parseConfig() || doctor?.doctorFirebaseConfig;
@@ -161,29 +181,34 @@ export default function DoctorDashboard() {
     }
   }, [cfgText, doctor]);
 
-  // Real-time DB connection check (every 10 min)
+  // ---------- Real-time connection monitor (every 10 min) ----------
   useEffect(() => {
     if (!doctorFs) return;
-    const checkConnection = async () => {
+    let mounted = true;
+    const check = async () => {
       try {
-        await getDocs(docCollection(doctorFs, "_connection_test"));
-        if (cfgStatus !== "ok") setCfgStatus("ok");
-      } catch {
+        await getDocs(fsCollection(doctorFs, "_connection_test"));
+        if (mounted && cfgStatus !== "ok") setCfgStatus("ok");
+      } catch (e) {
+        if (!mounted) return;
         setCfgStatus("error");
         setCfgError("⚠️ Firestore connection lost.");
       }
     };
-    const interval = setInterval(checkConnection, 600000);
-    checkConnection();
-    return () => clearInterval(interval);
-  }, [doctorFs]);
+    const id = setInterval(check, 600000); // 10 minutes
+    check();
+    return () => {
+      mounted = false;
+      clearInterval(id);
+    };
+  }, [doctorFs]); // eslint-disable-line
 
-  // Logout & refresh
+  // ---------- Logout / Refresh ----------
   const handleLogout = async () => {
     await signOut(adminAuth);
     localStorage.clear();
     window.location.replace("/");
-    setTimeout(() => window.location.reload(), 100);
+    setTimeout(() => window.location.reload(), 120);
   };
   const handleRefresh = async () => {
     setMessage("🔄 Refreshing...");
@@ -191,14 +216,17 @@ export default function DoctorDashboard() {
     setMessage("✅ Refreshed.");
   };
 
-  // Dashboard content
+  // ---------- Tabs ----------
+  const patientsTabDisabled = cfgStatus !== "ok";
+
   const DashboardTab = () => (
     <div style={tabContainer}>
       {doctor && (
         <>
+          {/* Summary header */}
           <div style={summaryBox}>
-            <div><b>Doctor:</b> {doctor.doctorName}</div>
-            <div><b>Email:</b> {doctor.email}</div>
+            <div><b>Doctor:</b> {doctor.doctorName || "-"}</div>
+            <div><b>Email:</b> {doctor.email || "-"}</div>
             <div><b>Status:</b> {doctor.status || "Registered"}</div>
             <div><b>Registration:</b> {fmt(doctor.registrationDate)}</div>
             <div><b>Activation:</b> {fmt(doctor.activationDate)}</div>
@@ -207,12 +235,7 @@ export default function DoctorDashboard() {
               <b>Database Connection:</b>{" "}
               <span style={{
                 fontWeight: "bold",
-                color:
-                  cfgStatus === "ok"
-                    ? "green"
-                    : cfgStatus === "error"
-                    ? "red"
-                    : "gray",
+                color: cfgStatus === "ok" ? "green" : cfgStatus === "error" ? "red" : "gray"
               }}>
                 {cfgStatus === "ok"
                   ? "Connected ✅"
@@ -223,6 +246,7 @@ export default function DoctorDashboard() {
             </div>
           </div>
 
+          {/* Profile edit */}
           <div style={editBox}>
             <div style={{ display: "flex", justifyContent: "flex-start", gap: 10 }}>
               <button onClick={() => setEditing(!editing)} style={btnPrimary}>
@@ -239,11 +263,15 @@ export default function DoctorDashboard() {
             <div style={grid}>
               <Field label="Mobile" value={form.mobile} editable={editing} onChange={(v) => setForm({ ...form, mobile: v })} />
               <Field label="Clinic Name" value={form.clinicName} editable={editing} onChange={(v) => setForm({ ...form, clinicName: v })} />
+              <Field label="Degree" value={form.degree} editable={editing} onChange={(v) => setForm({ ...form, degree: v })} />
+              <Field label="Specialization" value={form.specialization} editable={editing} onChange={(v) => setForm({ ...form, specialization: v })} />
+              <Field label="Experience (years)" value={form.experienceYears} editable={editing} onChange={(v) => setForm({ ...form, experienceYears: v })} />
               <Field label="Clinic Address" value={form.clinicAddress} editable={editing} onChange={(v) => setForm({ ...form, clinicAddress: v })} wide />
               <Field label="Doctor Address" value={form.doctorAddress} editable={editing} onChange={(v) => setForm({ ...form, doctorAddress: v })} wide />
             </div>
           </div>
 
+          {/* Firebase setup wizard */}
           <div style={wizardBox}>
             <h2 style={{ color: "#0d47a1" }}>Secure & Working Firestore Setup Guide</h2>
             <p style={{ fontStyle: "italic", marginBottom: 15 }}>
@@ -255,7 +283,7 @@ export default function DoctorDashboard() {
                 Go to <a href="https://console.firebase.google.com" target="_blank" rel="noreferrer">Firebase Console</a> → Add Project → name it (e.g., MediTrac-Dr-Joshi). Disable Analytics → Create Project.
               </li>
               <li><b>2️⃣ Enable Firestore Database</b><br />Build → Firestore Database → Create Database → Production Mode.</li>
-              <li><b>3️⃣ Enable Authentication</b><br />Build → Authentication → Enable Email/Password → (Optional) add “MediTrac Clinic” as sender name in password reset template.</li>
+              <li><b>3️⃣ Enable Authentication</b><br />Build → Authentication → Enable Email/Password → (Optional) add sender name “MediTrac Clinic” in Password Reset template.</li>
               <li><b>4️⃣ Add Web App (Get Config JSON)</b><br />Project Settings → General → Web App → Register → Copy JSON like below:
                 <pre style={jsonBox}>{`{
   "apiKey": "AIzaSy....",
@@ -282,8 +310,8 @@ service cloud.firestore {
   }
 }`}</pre>
               </li>
-              <li><b>6️⃣ Add Authentication User</b><br />In Authentication → Users → Add user → Use same email & any password.</li>
-              <li><b>7️⃣ Save & Test</b><br />Paste JSON → Click “Test Connection” → Expect ✅ Connected message.</li>
+              <li><b>6️⃣ Add Authentication User</b><br />In Authentication → Users → Add user → Use the same email and any password (you’ll enter it inside “My Patients”).</li>
+              <li><b>7️⃣ Save & Test</b><br />Paste JSON below → Click “Test Connection” → Expect ✅ Connected. Then click “Save Config”.</li>
             </ol>
 
             <textarea
@@ -292,6 +320,11 @@ service cloud.firestore {
               placeholder="Paste Firebase Config JSON here..."
               value={cfgText}
               onChange={(e) => setCfgText(e.target.value)}
+              onFocus={(e) => {
+                e.stopPropagation();
+              }}
+              onMouseDown={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
             />
             <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
               <button onClick={handleTestConnection} style={btnSecondary}>Test Connection</button>
@@ -309,21 +342,39 @@ service cloud.firestore {
     <div style={outer}>
       <div style={topBar}>
         <div>
-          <button onClick={() => setActiveTab("dashboard")} style={tabButton(activeTab === "dashboard")}>Dashboard</button>
-          <button onClick={() => setActiveTab("patients")} style={tabButton(activeTab === "patients")}>My Patients</button>
+          <button
+            onClick={() => setActiveTab("dashboard")}
+            style={tabButton(activeTab === "dashboard")}
+          >
+            Dashboard
+          </button>
+          <button
+            onClick={() => !patientsTabDisabled && setActiveTab("patients")}
+            style={tabButton(activeTab === "patients", patientsTabDisabled)}
+            disabled={patientsTabDisabled}
+            title={patientsTabDisabled ? "Configure & test Firestore in Dashboard first" : ""}
+          >
+            My Patients
+          </button>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <button onClick={handleRefresh} style={btnSecondary}>Refresh</button>
           <button onClick={handleLogout} style={btnDanger}>Logout</button>
         </div>
       </div>
-      {activeTab === "dashboard" ? <DashboardTab /> : <DoctorPatients doctorFs={doctorFs} doctor={doctor} />}
+
+      {activeTab === "dashboard" ? (
+        <DashboardTab />
+      ) : (
+        <DoctorPatients doctorFs={doctorFs} doctor={doctor} />
+      )}
+
       {message && <p style={{ padding: 20 }}>{message}</p>}
     </div>
   );
 }
 
-// Field Component
+// ---------- Field ----------
 const Field = ({ label, value, editable, onChange, wide }) => (
   <div style={{ marginBottom: 10, gridColumn: wide ? "1 / -1" : "auto" }}>
     <b>{label}:</b>
@@ -340,10 +391,19 @@ const Field = ({ label, value, editable, onChange, wide }) => (
   </div>
 );
 
-// Styles
+// ---------- Styles ----------
 const outer = { fontFamily: "Segoe UI, sans-serif", background: "#f4f7fc", minHeight: "100vh" };
 const topBar = { display: "flex", justifyContent: "space-between", alignItems: "center", background: "#1565c0", color: "white", padding: "12px 20px" };
-const tabButton = (active) => ({ background: active ? "white" : "transparent", color: active ? "#1565c0" : "white", border: "none", padding: "8px 12px", borderRadius: 6, cursor: "pointer", fontWeight: 600 });
+const tabButton = (active, disabled) => ({
+  background: active ? "white" : "transparent",
+  color: active ? "#1565c0" : "white",
+  opacity: disabled ? 0.6 : 1,
+  border: "none",
+  padding: "8px 12px",
+  borderRadius: 6,
+  cursor: disabled ? "not-allowed" : "pointer",
+  fontWeight: 600,
+});
 const btnPrimary = { background: "#1565c0", color: "white", border: "none", padding: "8px 14px", borderRadius: 6, cursor: "pointer" };
 const btnSecondary = { background: "white", color: "#1565c0", border: "1px solid #1565c0", padding: "6px 10px", borderRadius: 6, cursor: "pointer" };
 const btnDanger = { background: "#ef5350", color: "white", border: "none", padding: "6px 10px", borderRadius: 6, cursor: "pointer" };
@@ -355,5 +415,16 @@ const wizardBox = { background: "white", borderRadius: 10, padding: 20, boxShado
 const stepList = { lineHeight: 1.8, marginLeft: 20 };
 const ruleBox = { background: "#f4f7fc", padding: "8px 12px", borderRadius: 6, border: "1px solid #ccc", fontFamily: "monospace", fontSize: 13, overflowX: "auto" };
 const jsonBox = { background: "#fafafa", border: "1px solid #ddd", borderRadius: 6, padding: 8, fontFamily: "monospace", fontSize: 13, overflowX: "auto" };
-const configArea = { width: "100%", height: 200, border: "1px solid #ccc", borderRadius: 8, padding: 10, fontFamily: "monospace", resize: "none", background: "#fafafa", lineHeight: 1.5 };
+const configArea = {
+  width: "100%",
+  height: 200,
+  border: "1px solid #ccc",
+  borderRadius: 8,
+  padding: 10,
+  fontFamily: "monospace",
+  resize: "none",
+  background: "#fafafa",
+  lineHeight: 1.5,
+  overscrollBehavior: "contain",
+};
 const input = { width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid #ccc", marginTop: 5 };

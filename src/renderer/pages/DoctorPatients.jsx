@@ -11,8 +11,6 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import dayjs from "dayjs";
-
-// Firebase app/auth for the doctor's OWN project (not admin)
 import { initializeApp, getApps } from "firebase/app";
 import { getAuth, signInWithEmailAndPassword } from "firebase/auth";
 import { getFirestore as getDoctorFs } from "firebase/firestore";
@@ -20,23 +18,22 @@ import { getFirestore as getDoctorFs } from "firebase/firestore";
 const PAGE_SIZE = 20;
 
 export default function DoctorPatients({ doctorFs, doctor }) {
-  // --- tabs inside My Patients ---
   const [subTab, setSubTab] = useState("register"); // 'register' | 'list'
 
-  // --- clinic auth (doctor's Firebase project) ---
+  // clinic (doctor) auth
   const [clinicAuthReady, setClinicAuthReady] = useState(false);
   const [clinicAuthError, setClinicAuthError] = useState("");
-  const [dbPassword, setDbPassword] = useState(""); // entered once by doctor
+  const [dbPassword, setDbPassword] = useState("");
 
-  // --- searching, paging, data ---
+  // data/paging
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [adding, setAdding] = useState(false);
-  const [patients, setPatients] = useState([]); // current page data
-  const [pageCursors, setPageCursors] = useState([]); // stack of cursors
+  const [patients, setPatients] = useState([]);
+  const [pageCursors, setPageCursors] = useState([]);
   const [isLastPage, setIsLastPage] = useState(false);
 
-  // --- add form ---
+  // add form
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
@@ -48,16 +45,13 @@ export default function DoctorPatients({ doctorFs, doctor }) {
     notes: "",
   });
 
-  // ---------- Build (or reuse) the doctor's Firebase app ----------
+  // Build (or reuse) doctor's Firebase app from saved config in localStorage
   const clinicApp = useMemo(() => {
     try {
-      const cfg =
-        (typeof window !== "undefined" &&
-          localStorage.getItem("doctorFirebaseConfig") &&
-          JSON.parse(localStorage.getItem("doctorFirebaseConfig"))) ||
-        null;
-      if (!cfg || !cfg.projectId) return null;
-
+      const raw = localStorage.getItem("doctorFirebaseConfig");
+      if (!raw) return null;
+      const cfg = JSON.parse(raw);
+      if (!cfg?.projectId) return null;
       const appName = `meditrac-doc-${cfg.projectId}`;
       const existing = getApps().find((a) => a.name === appName);
       return existing || initializeApp(cfg, appName);
@@ -69,7 +63,7 @@ export default function DoctorPatients({ doctorFs, doctor }) {
   const clinicAuth = useMemo(() => (clinicApp ? getAuth(clinicApp) : null), [clinicApp]);
   const clinicFs = useMemo(() => (clinicApp ? getDoctorFs(clinicApp) : null), [clinicApp]);
 
-  // ---------- Ensure signed-in to doctor's Firebase Auth ----------
+  // Require: doctorFs (from Dashboard) & localStorage config & sign-in to clinicAuth
   const ensureClinicSignIn = async () => {
     if (!clinicAuth || !doctor?.email) return;
     try {
@@ -80,9 +74,7 @@ export default function DoctorPatients({ doctorFs, doctor }) {
       }
       if (!dbPassword) {
         setClinicAuthReady(false);
-        setClinicAuthError(
-          "Enter your Clinic DB password (Firebase Auth user created in your project) and click Sign In."
-        );
+        setClinicAuthError("Enter your Clinic DB password then click Sign In.");
         return;
       }
       await signInWithEmailAndPassword(clinicAuth, doctor.email, dbPassword);
@@ -91,42 +83,39 @@ export default function DoctorPatients({ doctorFs, doctor }) {
     } catch (err) {
       console.error("Clinic sign-in failed:", err);
       setClinicAuthReady(false);
-      setClinicAuthError("Sign-in failed. Check password or Firebase Auth user.");
+      setClinicAuthError("Sign-in failed. Check password or Auth user in your Firebase project.");
     }
   };
 
-  // Call sign-in once when tab mounts or password changes
   useEffect(() => {
-    if (clinicAuth && doctor?.email) {
-      ensureClinicSignIn();
+    // try auto-ready if already signed-in
+    if (clinicAuth?.currentUser?.email === doctor?.email) {
+      setClinicAuthReady(true);
+      setClinicAuthError("");
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clinicAuth, doctor?.email]);
 
-  // ---------- Load a page of patients ----------
+  // Load one page
   const fetchPage = async (direction = "first") => {
     if (!clinicFs || !clinicAuthReady) return;
     setLoading(true);
     try {
-      // Use top-level "Patients" collection in the doctor's own project
-      let q = query(
-        collection(clinicFs, "Patients"),
-        orderBy("createdAt", "desc"),
-        limit(PAGE_SIZE)
-      );
+      let q = query(collection(clinicFs, "Patients"), orderBy("createdAt", "desc"), limit(PAGE_SIZE));
 
       if (direction === "next" && pageCursors.length > 0) {
         const last = pageCursors[pageCursors.length - 1];
-        if (last) q = query(collection(clinicFs, "Patients"), orderBy("createdAt", "desc"), startAfter(last), limit(PAGE_SIZE));
+        if (last) {
+          q = query(
+            collection(clinicFs, "Patients"),
+            orderBy("createdAt", "desc"),
+            startAfter(last),
+            limit(PAGE_SIZE)
+          );
+        }
       } else if (direction === "prev") {
-        // Going back: drop last cursor and re-run with previous one
         const newStack = [...pageCursors];
         newStack.pop();
-        let q2 = query(
-          collection(clinicFs, "Patients"),
-          orderBy("createdAt", "desc"),
-          limit(PAGE_SIZE)
-        );
+        let q2 = query(collection(clinicFs, "Patients"), orderBy("createdAt", "desc"), limit(PAGE_SIZE));
         if (newStack.length > 0) {
           q2 = query(
             collection(clinicFs, "Patients"),
@@ -148,7 +137,6 @@ export default function DoctorPatients({ doctorFs, doctor }) {
       setPatients(docs);
       setIsLastPage(snap.docs.length < PAGE_SIZE);
 
-      // update cursor stack when moving next/first
       if (direction === "first") {
         setPageCursors(snap.docs.length ? [snap.docs[snap.docs.length - 1]] : []);
       } else if (direction === "next") {
@@ -163,13 +151,13 @@ export default function DoctorPatients({ doctorFs, doctor }) {
     }
   };
 
-  // initial load (first page)
+  // First page after sign-in ready
   useEffect(() => {
     if (clinicFs && clinicAuthReady) fetchPage("first");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clinicFs, clinicAuthReady]);
 
-  // ---------- Search (client-side over current page) ----------
+  // Search (client-side on current page)
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
     if (!term) return patients;
@@ -182,17 +170,14 @@ export default function DoctorPatients({ doctorFs, doctor }) {
     );
   }, [search, patients]);
 
-  // ---------- Age helper ----------
   const ageFromDob = (dobStr) => {
     if (!dobStr) return "-";
     const d = dayjs(dobStr);
     if (!d.isValid()) return "-";
-    const now = dayjs();
-    const years = now.diff(d, "year");
+    const years = dayjs().diff(d, "year");
     return `${years}`;
   };
 
-  // ---------- Add patient ----------
   const handleAddPatient = async (e) => {
     e.preventDefault();
     if (!clinicFs || !clinicAuthReady) {
@@ -217,7 +202,6 @@ export default function DoctorPatients({ doctorFs, doctor }) {
         bloodGroup: "",
         notes: "",
       });
-      // reload first page
       await fetchPage("first");
       setSubTab("list");
     } catch (err) {
@@ -226,16 +210,22 @@ export default function DoctorPatients({ doctorFs, doctor }) {
     }
   };
 
+  // If config not present, block entire tab
+  const hasConfig = !!localStorage.getItem("doctorFirebaseConfig");
+
   return (
     <div style={outer}>
-      {/* Clinic DB sign-in banner */}
-      {clinicApp && (!clinicAuthReady || clinicAuth?.currentUser?.email !== doctor?.email) && (
+      {!hasConfig || !doctorFs ? (
+        <div style={blocked}>
+          <h3>Clinic Database not configured</h3>
+          <p>Go to <b>Dashboard</b> → paste Config → <b>Test Connection</b> → <b>Save Config</b>.</p>
+        </div>
+      ) : !clinicAuthReady ? (
         <div style={banner}>
           <div>
-            <b>Clinic DB Sign-In required:</b> Use your Firebase project Auth user.
+            <b>Clinic DB Sign-In required</b>
             <div style={{ fontSize: 12, color: "#555", marginTop: 4 }}>
-              (Email: <b>{doctor?.email}</b> — enter the password you created under
-              Firebase → Authentication → Users)
+              Email: <b>{doctor?.email}</b> (created in your Firebase project under Authentication → Users)
             </div>
             {clinicAuthError && <div style={{ color: "red", marginTop: 6 }}>{clinicAuthError}</div>}
           </div>
@@ -250,26 +240,30 @@ export default function DoctorPatients({ doctorFs, doctor }) {
             <button onClick={ensureClinicSignIn} style={btnPrimary}>Sign In</button>
           </div>
         </div>
-      )}
+      ) : null}
 
       {/* Sub-tabs */}
       <div style={subtabBar}>
         <button
           style={subTabBtn(subTab === "register")}
           onClick={() => setSubTab("register")}
+          disabled={!clinicAuthReady}
+          title={!clinicAuthReady ? "Sign in to Clinic DB first" : ""}
         >
           ➕ Register Patient
         </button>
         <button
           style={subTabBtn(subTab === "list")}
           onClick={() => setSubTab("list")}
+          disabled={!clinicAuthReady}
+          title={!clinicAuthReady ? "Sign in to Clinic DB first" : ""}
         >
           📋 Registered Patients
         </button>
       </div>
 
-      {/* --- Register Patient --- */}
-      {subTab === "register" && (
+      {/* Register Patient */}
+      {subTab === "register" && clinicAuthReady && (
         <form onSubmit={handleAddPatient} style={formBox}>
           <h3 style={{ marginTop: 0, color: "#0d47a1" }}>📝 Register New Patient</h3>
           <div style={grid}>
@@ -296,8 +290,8 @@ export default function DoctorPatients({ doctorFs, doctor }) {
         </form>
       )}
 
-      {/* --- Registered Patients (search + pagination) --- */}
-      {subTab === "list" && (
+      {/* Registered Patients */}
+      {subTab === "list" && clinicAuthReady && (
         <div style={{ background: "white", padding: 16, borderRadius: 10, boxShadow: "0 2px 8px rgba(0,0,0,0.1)" }}>
           <div style={toolbar}>
             <input
@@ -373,7 +367,7 @@ export default function DoctorPatients({ doctorFs, doctor }) {
   );
 }
 
-// ---------- Reusable Field ----------
+// ---------- Field ----------
 const Field = ({ label, value, onChange, type = "text", required = false, options = [] }) => (
   <div>
     <label><b>{label}:</b></label>
@@ -397,6 +391,7 @@ const Field = ({ label, value, onChange, type = "text", required = false, option
 
 // ---------- Styles ----------
 const outer = { padding: 20, background: "#f4f7fc", minHeight: "100vh", fontFamily: "Segoe UI, sans-serif" };
+const blocked = { background: "#fff3e0", border: "1px solid #ffe0b2", padding: 16, borderRadius: 8, marginBottom: 12 };
 const banner = { background: "#fff8e1", border: "1px solid #ffe082", padding: 12, borderRadius: 8, display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, gap: 12 };
 const subtabBar = { display: "flex", gap: 8, marginBottom: 12 };
 const subTabBtn = (active) => ({
