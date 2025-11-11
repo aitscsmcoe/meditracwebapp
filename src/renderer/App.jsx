@@ -1,5 +1,4 @@
-﻿// src/renderer/App.jsx
-import React from "react";
+﻿import React from "react";
 import { BrowserRouter as Router, Routes, Route, useNavigate } from "react-router-dom";
 import EmailEntryPage from "./pages/EmailEntryPage";
 import AdminLoginPage from "./pages/AdminLoginPage";
@@ -8,6 +7,7 @@ import DoctorDashboard from "./pages/DoctorDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 import DoctorActivationPage from "./pages/DoctorActivationPage"; // (placeholder for now)
 import DoctorProfileSetup from "./pages/DoctorProfileSetup"; // new - doctor completes profile & requests activation
+import PatientDetails from "./pages/PatientDetails"; // <-- Make sure this is imported
 
 export default function App() {
   return (
@@ -27,6 +27,10 @@ export default function App() {
 
         {/* New: doctor profile setup (complete profile + request activation) */}
         <Route path="/doctor-setup" element={<DoctorProfileSetup />} />
+
+        {/* Patient details routes */}
+        <Route path="/doctor-dashboard/patient/:id" element={<PatientDetails />} /> {/* <-- PatientDetails route */}
+
       </Routes>
     </Router>
   );
