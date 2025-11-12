@@ -10,15 +10,13 @@ import {
 } from "firebase/firestore";
 import dayjs from "dayjs";
 import { initializeApp, getApps } from "firebase/app";
-import { getAuth, signInWithEmailAndPassword } from "firebase/auth";
+import { getAuth, signInWithEmailAndPassword, setPersistence, browserLocalPersistence } from "firebase/auth";
 import { getFirestore as getDoctorFs } from "firebase/firestore";
-import { useNavigate } from "react-router-dom";
+import PatientDetails from "./PatientDetails"; // 👈 inline import for sub-tab rendering
 
 const PAGE_SIZE = 20;
 
 export default function DoctorPatients({ doctor }) {
-  const navigate = useNavigate();
-
   /* ---------------------- Shared Firebase App ---------------------- */
   const { clinicApp, clinicAuth, clinicFs } = useMemo(() => {
     try {
@@ -30,23 +28,29 @@ export default function DoctorPatients({ doctor }) {
       const appName = `meditrac-doc-${cfg.projectId}`;
       const existing = getApps().find((a) => a.name === appName);
       const app = existing || initializeApp(cfg, appName);
-
-      return {
-        clinicApp: app,
-        clinicAuth: getAuth(app),
-        clinicFs: getDoctorFs(app),
-      };
+      const auth = getAuth(app);
+      setPersistence(auth, browserLocalPersistence).catch(() => {});
+      return { clinicApp: app, clinicAuth: auth, clinicFs: getDoctorFs(app) };
     } catch (err) {
-      console.error("Firebase initialization error:", err);
+      console.error("Firebase init error:", err);
       return {};
     }
   }, []);
+
+  useEffect(() => {
+    try {
+      if (clinicApp && clinicApp.options && !localStorage.getItem("doctorFirebaseConfig")) {
+        localStorage.setItem("doctorFirebaseConfig", JSON.stringify(clinicApp.options));
+      }
+    } catch {}
+  }, [clinicApp]);
 
   /* ---------------------- States ---------------------- */
   const [connected, setConnected] = useState(false);
   const [dbPassword, setDbPassword] = useState("");
   const [connectError, setConnectError] = useState("");
   const [subTab, setSubTab] = useState("add");
+  const [openPatients, setOpenPatients] = useState([]); // 👈 new sub-tab list
   const [loading, setLoading] = useState(false);
   const [patients, setPatients] = useState([]);
   const [adding, setAdding] = useState(false);
@@ -64,7 +68,13 @@ export default function DoctorPatients({ doctor }) {
     notes: "",
   });
 
-  /* ---------------------- DB Connect ---------------------- */
+  /* ---------------------- Auto Connection ---------------------- */
+  useEffect(() => {
+    if (clinicAuth && doctor?.email && clinicAuth.currentUser?.email === doctor.email) {
+      setConnected(true);
+    }
+  }, [clinicAuth, doctor]);
+
   const handleDbConnect = async () => {
     if (!clinicAuth || !doctor?.email) {
       alert("Firebase not configured. Save config first.");
@@ -73,15 +83,16 @@ export default function DoctorPatients({ doctor }) {
     try {
       if (clinicAuth.currentUser?.email === doctor.email) {
         setConnected(true);
-        setConnectError("");
         return;
       }
+      await setPersistence(clinicAuth, browserLocalPersistence).catch(() => {});
       await signInWithEmailAndPassword(clinicAuth, doctor.email, dbPassword);
       setConnected(true);
-      setConnectError("");
+      setDbPassword("");
       alert("✅ Connected to clinic database successfully.");
+      if (subTab === "list") fetchPatients();
     } catch (err) {
-      console.error("DB connection failed:", err);
+      console.error("DB connect failed:", err);
       setConnected(false);
       setConnectError("Invalid password or Firebase Auth error.");
     }
@@ -101,9 +112,9 @@ export default function DoctorPatients({ doctor }) {
       setPatients(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
       setPermissionError("");
     } catch (err) {
-      console.error("Error loading patients:", err);
+      console.error("Load patients:", err);
       if (err.code === "permission-denied") {
-        setPermissionError("⚠️ Insufficient Firestore permission. Try reconnecting to clinic DB.");
+        setPermissionError("⚠️ Firestore permission denied. Try reconnecting.");
       }
       setPatients([]);
     } finally {
@@ -116,16 +127,14 @@ export default function DoctorPatients({ doctor }) {
   }, [connected, subTab, fetchPatients]);
 
   /* ---------------------- Add Patient ---------------------- */
-  const onlyDigits = (s) => s.replace(/\D+/g, "");
-  const validateMobile = (m) => /^[0-9]{10}$/.test(m);
+  const onlyDigits = (s) => (s ?? "").replace(/\D+/g, "");
+  const validateMobile = (m) => /^[0-9]{10}$/.test(m ?? "");
 
   const handleAddPatient = async (ev) => {
     ev.preventDefault();
     if (!clinicFs || !connected) return alert("Please connect first.");
-    if (!form.firstName.trim() || !form.lastName.trim())
-      return alert("Enter first and last name.");
-    if (!validateMobile(form.mobile.trim()))
-      return alert("Enter valid 10-digit mobile number.");
+    if (!form.firstName?.trim() || !form.lastName?.trim()) return alert("Enter name.");
+    if (!validateMobile(form.mobile?.trim())) return alert("Enter valid 10-digit mobile.");
 
     setAdding(true);
     try {
@@ -157,17 +166,30 @@ export default function DoctorPatients({ doctor }) {
   };
 
   const filtered = patients.filter((p) => {
-    const t = search.trim().toLowerCase();
+    const t = (search ?? "").trim().toLowerCase();
     if (!t) return true;
     return (
-      p.firstName?.toLowerCase().includes(t) ||
-      p.lastName?.toLowerCase().includes(t) ||
-      p.mobile?.toLowerCase().includes(t) ||
-      p.patientId?.toLowerCase().includes(t)
+      (p.firstName ?? "").toLowerCase().includes(t) ||
+      (p.lastName ?? "").toLowerCase().includes(t) ||
+      (p.mobile ?? "").toLowerCase().includes(t) ||
+      (p.patientId ?? "").toLowerCase().includes(t)
     );
   });
 
-  const openPatientDetails = (id) => navigate(`/doctor-dashboard/patient/${id}`);
+  /* ---------------------- Sub-tab open/close logic ---------------------- */
+  const openPatientTab = (patient) => {
+    if (!openPatients.find((x) => x.id === patient.id)) {
+      setOpenPatients([...openPatients, patient]);
+      setSubTab(patient.id);
+    } else {
+      setSubTab(patient.id);
+    }
+  };
+
+  const closePatientTab = (id) => {
+    setOpenPatients((prev) => prev.filter((p) => p.id !== id));
+    if (subTab === id) setSubTab("list");
+  };
 
   /* ---------------------- UI ---------------------- */
   return (
@@ -179,7 +201,7 @@ export default function DoctorPatients({ doctor }) {
             <input
               type="password"
               placeholder="Clinic DB password"
-              value={dbPassword}
+              value={dbPassword ?? ""}
               onChange={(e) => setDbPassword(e.target.value)}
               autoComplete="new-password"
               style={input}
@@ -197,6 +219,7 @@ export default function DoctorPatients({ doctor }) {
 
       {connected ? (
         <>
+          {/* ----- Tab Bar ----- */}
           <div style={tabBar}>
             <button style={tabBtn(subTab === "add")} onClick={() => setSubTab("add")}>
               ➕ Add Patient
@@ -204,20 +227,30 @@ export default function DoctorPatients({ doctor }) {
             <button style={tabBtn(subTab === "list")} onClick={() => setSubTab("list")}>
               📋 Registered Patients
             </button>
+
+            {openPatients.map((p) => (
+              <div key={p.id} style={tabWrapper}>
+                <button style={tabBtn(subTab === p.id)} onClick={() => setSubTab(p.id)}>
+                  {p.firstName} {p.lastName}
+                </button>
+                <button onClick={() => closePatientTab(p.id)} style={closeBtn}>✕</button>
+              </div>
+            ))}
           </div>
 
+          {/* ----- Tab Content ----- */}
           {subTab === "add" && (
             <form onSubmit={handleAddPatient} style={formBox}>
               <div style={grid}>
-                <LabeledInput label="First Name" value={form.firstName} onChange={(v) => setForm((f) => ({ ...f, firstName: v }))} />
-                <LabeledInput label="Last Name" value={form.lastName} onChange={(v) => setForm((f) => ({ ...f, lastName: v }))} />
-                <LabeledInput label="Mobile" value={form.mobile} onChange={(v) => setForm((f) => ({ ...f, mobile: onlyDigits(v).slice(0, 10) }))} />
-                <LabeledSelect label="Gender" value={form.gender} onChange={(v) => setForm((f) => ({ ...f, gender: v }))} options={["Male", "Female", "Other"]} />
-                <LabeledInput label="Date of Birth" type="date" value={form.dob} onChange={(v) => setForm((f) => ({ ...f, dob: v }))} />
-                <LabeledInput label="Weight (kg)" value={form.weight} onChange={(v) => setForm((f) => ({ ...f, weight: onlyDigits(v) }))} />
-                <LabeledSelect label="Blood Group" value={form.bloodGroup} onChange={(v) => setForm((f) => ({ ...f, bloodGroup: v }))} options={["", "A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"]} />
+                <LabeledInput label="First Name" value={form.firstName ?? ""} onChange={(v) => setForm((f) => ({ ...f, firstName: v }))} />
+                <LabeledInput label="Last Name" value={form.lastName ?? ""} onChange={(v) => setForm((f) => ({ ...f, lastName: v }))} />
+                <LabeledInput label="Mobile" value={form.mobile ?? ""} onChange={(v) => setForm((f) => ({ ...f, mobile: onlyDigits(v).slice(0, 10) }))} />
+                <LabeledSelect label="Gender" value={form.gender ?? "Male"} onChange={(v) => setForm((f) => ({ ...f, gender: v }))} options={["Male", "Female", "Other"]} />
+                <LabeledInput label="Date of Birth" type="date" value={form.dob ?? ""} onChange={(v) => setForm((f) => ({ ...f, dob: v }))} />
+                <LabeledInput label="Weight (kg)" value={form.weight ?? ""} onChange={(v) => setForm((f) => ({ ...f, weight: onlyDigits(v).slice(0, 3) }))} />
+                <LabeledSelect label="Blood Group" value={form.bloodGroup ?? ""} onChange={(v) => setForm((f) => ({ ...f, bloodGroup: v }))} options={["", "A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"]} />
               </div>
-              <textarea value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} style={notesBox} placeholder="Notes..." />
+              <textarea value={form.notes ?? ""} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} style={notesBox} placeholder="Notes..." />
               <button type="submit" style={btnPrimary}>{adding ? "Saving..." : "Save Patient"}</button>
             </form>
           )}
@@ -226,7 +259,7 @@ export default function DoctorPatients({ doctor }) {
             <div style={listCard}>
               {permissionError && <div style={warnBox}>{permissionError}</div>}
               <div style={toolbar}>
-                <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} style={searchBox} placeholder="Search..." />
+                <input type="text" value={search ?? ""} onChange={(e) => setSearch(e.target.value)} style={searchBox} placeholder="Search..." />
               </div>
               {loading ? (
                 <p>Loading...</p>
@@ -246,7 +279,7 @@ export default function DoctorPatients({ doctor }) {
                         <td>{p.mobile}</td>
                         <td>{p.gender}</td>
                         <td>{p.createdAt?.seconds ? dayjs(p.createdAt.seconds * 1000).format("DD MMM YYYY") : "-"}</td>
-                        <td><button style={btnSecondary} onClick={() => openPatientDetails(p.id)}>👁 View</button></td>
+                        <td><button style={btnSecondary} onClick={() => openPatientTab(p)}>👁 View</button></td>
                       </tr>
                     ))}
                   </tbody>
@@ -254,6 +287,14 @@ export default function DoctorPatients({ doctor }) {
               )}
             </div>
           )}
+
+          {openPatients.map((p) => (
+            subTab === p.id && (
+              <div key={p.id} style={subTabPanel}>
+                <PatientDetails id={p.id} inline />
+              </div>
+            )
+          ))}
         </>
       ) : (
         <div style={hintCard}><p>Save Firebase config in Dashboard, then connect here.</p></div>
@@ -267,7 +308,7 @@ function LabeledInput({ label, value, onChange, type = "text" }) {
   return (
     <div>
       <label style={labelStyle}>{label}</label>
-      <input type={type} value={value} onChange={(e) => onChange(e.target.value)} style={input} />
+      <input type={type} value={value ?? ""} onChange={(e) => onChange(e.target.value)} style={input} />
     </div>
   );
 }
@@ -275,7 +316,7 @@ function LabeledSelect({ label, value, onChange, options }) {
   return (
     <div>
       <label style={labelStyle}>{label}</label>
-      <select value={value} onChange={(e) => onChange(e.target.value)} style={input}>
+      <select value={value ?? ""} onChange={(e) => onChange(e.target.value)} style={input}>
         {options.map((opt) => (
           <option key={opt} value={opt}>{opt || "-"}</option>
         ))}
@@ -287,16 +328,19 @@ function LabeledSelect({ label, value, onChange, options }) {
 /* ---------- Styles ---------- */
 const outer = { padding: 20, background: "#f4f7fc", minHeight: "100vh", fontFamily: "Segoe UI, sans-serif" };
 const headerRow = { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 };
-const tabBar = { display: "flex", gap: 8, marginBottom: 12 };
+const tabBar = { display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" };
+const tabWrapper = { display: "flex", alignItems: "center" };
+const closeBtn = { background: "transparent", border: "none", color: "red", cursor: "pointer", marginLeft: 4 };
 const tabBtn = (active) => ({
   background: active ? "#1565c0" : "white",
   color: active ? "white" : "#1565c0",
   border: "1px solid #1565c0",
-  padding: "8px 12px",
+  padding: "6px 10px",
   borderRadius: 6,
   cursor: "pointer",
   fontWeight: 600,
 });
+const subTabPanel = { marginTop: 10 };
 const formBox = { background: "white", padding: 20, borderRadius: 10, boxShadow: "0 2px 8px rgba(0,0,0,0.1)", maxWidth: 980 };
 const grid = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 };
 const notesBox = { width: "100%", minHeight: 80, borderRadius: 6, border: "1px solid #ccc", padding: 8 };

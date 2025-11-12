@@ -11,12 +11,13 @@ import { getFirestore as getDoctorFs } from "firebase/firestore";
 import dayjs from "dayjs";
 
 /* ---------------------------------------------------- */
-export default function PatientDetails() {
+export default function PatientDetails({ id: propId, inline = false }) {
+  const routeParams = useParams();
   const navigate = useNavigate();
-  const { id } = useParams();
+  const id = propId || routeParams.id;
 
-  /* ---------- Shared Firebase Instance ---------- */
-  const { clinicFs } = useMemo(() => {
+  /* ---------- Firebase App ---------- */
+  const { clinicApp, clinicAuth, clinicFs } = useMemo(() => {
     try {
       const cfgRaw = localStorage.getItem("doctorFirebaseConfig");
       if (!cfgRaw) return {};
@@ -27,14 +28,26 @@ export default function PatientDetails() {
       const app = existing || initializeApp(cfg, appName);
       const auth = getAuth(app);
       setPersistence(auth, browserLocalPersistence).catch(() => {});
-      return { clinicFs: getDoctorFs(app) };
+      return { clinicApp: app, clinicAuth: auth, clinicFs: getDoctorFs(app) };
     } catch (err) {
       console.error("Firebase init failed:", err);
       return {};
     }
   }, []);
 
-  /* ---------- State ---------- */
+  /* Auto-save config if needed */
+  useEffect(() => {
+    try {
+      if (clinicApp && clinicApp.options && !localStorage.getItem("doctorFirebaseConfig")) {
+        localStorage.setItem("doctorFirebaseConfig", JSON.stringify(clinicApp.options));
+        console.info("Auto-saved Firebase config from PatientDetails.");
+      }
+    } catch (err) {
+      console.warn("Auto-save config failed:", err);
+    }
+  }, [clinicApp]);
+
+  /* ---------- States ---------- */
   const [patient, setPatient] = useState(null);
   const [visits, setVisits] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -159,31 +172,18 @@ export default function PatientDetails() {
     }));
   };
 
-  /* ---------- Back Button (FIXED) ---------- */
-  const goBackToMyPatients = () => {
-    // If there is history to go back (came from list), do that to preserve state & auth
-    // Otherwise, fall back to /doctor-dashboard (root of Doctor area)
-    const canGoBack = (window.history?.state && typeof window.history.state.idx === "number" && window.history.state.idx > 0);
-    if (canGoBack) {
-      navigate(-1);
-    } else {
-      navigate("/doctor-dashboard", { replace: true });
-    }
-  };
-
-  /* ---------- Print Visit (Two-Column Details) ---------- */
+  /* ---------- Print Visit ---------- */
   const printVisit = (v) => {
-    const age = patient.dob ? dayjs().diff(dayjs(patient.dob), "year") : "-";
+    const age = patient?.dob ? dayjs().diff(dayjs(patient.dob), "year") : "-";
 
     const html = `
       <html>
       <head>
-        <title>Prescription - ${patient.firstName}</title>
+        <title>Prescription - ${patient?.firstName || ""}</title>
         <style>
           body { font-family:'Segoe UI',sans-serif; padding:24px; }
-          .spacer { height:100px; } /* ~5 lines blank for letterhead space */
+          .spacer { height:100px; }
           .grid { display:grid; grid-template-columns: 1fr 1fr; column-gap: 32px; row-gap: 6px; }
-          .rowfull { grid-column: 1 / span 2; }
           .label { font-weight: 600; }
           table { width:100%; border-collapse:collapse; margin-top:12px; }
           th,td { border:1px solid #ccc; padding:6px; text-align:center; }
@@ -194,14 +194,13 @@ export default function PatientDetails() {
       </head>
       <body>
         <div class="spacer"></div>
-
         <div class="grid">
           <div><span class="label">Visit Date:</span> ${v.visitDate || "-"}</div>
           <div><span class="label">Follow-up Date:</span> ${v.followUpDate || "-"}</div>
-          <div><span class="label">Patient Name:</span> ${patient.firstName} ${patient.lastName || ""}</div>
+          <div><span class="label">Patient Name:</span> ${patient?.firstName || ""} ${patient?.lastName || ""}</div>
           <div><span class="label">Age:</span> ${age}</div>
-          <div><span class="label">Blood Group:</span> ${patient.bloodGroup || "-"}</div>
-          <div><span class="label">Weight:</span> ${patient.weight || "-"} kg</div>
+          <div><span class="label">Blood Group:</span> ${patient?.bloodGroup || "-"}</div>
+          <div><span class="label">Weight:</span> ${patient?.weight || "-"} kg</div>
         </div>
 
         <div class="section">
@@ -209,13 +208,12 @@ export default function PatientDetails() {
           <table>
             <tr><th>Medicine</th><th>M</th><th>A</th><th>E</th><th>BL</th></tr>
             ${(v.prescriptions || []).map(p =>
-              `<tr><td style="text-align:left;padding-left:8px">${p.name}</td><td>${p.m ? "✔" : ""}</td><td>${p.a ? "✔" : ""}</td><td>${p.e ? "✔" : ""}</td><td>${p.bl ? "✔" : ""}</td></tr>`
+              `<tr><td>${p.name}</td><td>${p.m ? "✔" : ""}</td><td>${p.a ? "✔" : ""}</td><td>${p.e ? "✔" : ""}</td><td>${p.bl ? "✔" : ""}</td></tr>`
             ).join("")}
           </table>
         </div>
 
-        ${v.notes ? `<div class="section rowfull"><span class="label">Notes:</span> ${v.notes}</div>` : ""}
-
+        ${v.notes ? `<div class="section"><span class="label">Notes:</span> ${v.notes}</div>` : ""}
         <div class="footer">Generated by MediTrac</div>
         <script>window.onload=function(){window.print();}</script>
       </body>
@@ -232,9 +230,12 @@ export default function PatientDetails() {
 
   return (
     <div style={outer}>
-      <button onClick={goBackToMyPatients} style={btnBack}>
-        ← Back to My Patients
-      </button>
+      {/* Show Back only if not inline */}
+      {!inline && (
+        <button onClick={() => navigate("/doctor-dashboard/my-patients")} style={btnBack}>
+          ← Back to My Patients
+        </button>
+      )}
 
       <div style={headerBox}>
         <h2 style={{ color: "#1565c0" }}>{patient.firstName} {patient.lastName}</h2>
@@ -245,27 +246,23 @@ export default function PatientDetails() {
         </div>
       </div>
 
-      {/* ---------- Add Visit ---------- */}
+      {/* Add Visit */}
       <div style={visitCard}>
         <h3 style={{ color: "#0d47a1" }}>➕ Add Visit</h3>
         <form onSubmit={handleAddVisit}>
           <div style={grid}>
-            <LabeledInput label="Visit Date" type="date" value={newVisit.visitDate}
-              onChange={(v) => setNewVisit((f) => ({ ...f, visitDate: v }))} />
-            <LabeledInput label="Follow-up Date" type="date" value={newVisit.followUpDate}
-              onChange={(v) => setNewVisit((f) => ({ ...f, followUpDate: v }))} />
+            <LabeledInput label="Visit Date" type="date" value={newVisit.visitDate ?? ""} onChange={(v) => setNewVisit((f) => ({ ...f, visitDate: v }))} />
+            <LabeledInput label="Follow-up Date" type="date" value={newVisit.followUpDate ?? ""} onChange={(v) => setNewVisit((f) => ({ ...f, followUpDate: v }))} />
           </div>
-          <LabeledInput label="Reason for Visit (Symptoms)*" value={newVisit.reason}
-            onChange={(v) => setNewVisit((f) => ({ ...f, reason: v }))} required />
-          <LabeledInput label="Diagnosis" value={newVisit.diagnosis}
-            onChange={(v) => setNewVisit((f) => ({ ...f, diagnosis: v }))} />
+          <LabeledInput label="Reason for Visit (Symptoms)*" value={newVisit.reason ?? ""} onChange={(v) => setNewVisit((f) => ({ ...f, reason: v }))} required />
+          <LabeledInput label="Diagnosis" value={newVisit.diagnosis ?? ""} onChange={(v) => setNewVisit((f) => ({ ...f, diagnosis: v }))} />
 
           <h4>Prescriptions</h4>
           <div style={prescriptionRow}>
             <input
               type="text"
               placeholder="Medicine name"
-              value={prescriptionEntry.name}
+              value={prescriptionEntry.name ?? ""}
               onChange={(e) => setPrescriptionEntry((p) => ({ ...p, name: e.target.value }))}
               style={input}
             />
@@ -274,7 +271,7 @@ export default function PatientDetails() {
                 <label key={t} style={checkboxLabel}>
                   <input
                     type="checkbox"
-                    checked={prescriptionEntry[t]}
+                    checked={!!prescriptionEntry[t]}
                     onChange={(e) => setPrescriptionEntry((p) => ({ ...p, [t]: e.target.checked }))}
                   /> {t.toUpperCase()}
                 </label>
@@ -301,8 +298,7 @@ export default function PatientDetails() {
             </table>
           )}
 
-          <LabeledInput label="Notes" value={newVisit.notes}
-            onChange={(v) => setNewVisit((f) => ({ ...f, notes: v }))} />
+          <LabeledInput label="Notes" value={newVisit.notes ?? ""} onChange={(v) => setNewVisit((f) => ({ ...f, notes: v }))} />
 
           <button type="submit" style={btnPrimary} disabled={adding}>
             {adding ? "Saving..." : "Save Visit"}
@@ -310,7 +306,7 @@ export default function PatientDetails() {
         </form>
       </div>
 
-      {/* ---------- Visit History ---------- */}
+      {/* Visit History */}
       <div style={visitListCard}>
         <h3 style={{ color: "#0d47a1" }}>📋 Visit History</h3>
         {visits.length === 0 ? (
@@ -332,9 +328,7 @@ export default function PatientDetails() {
                     <td>{v.notes || "-"}</td>
                     <td>
                       {(v.prescriptions || []).map((p, i) => (
-                        <div key={i}>
-                          {p.name} [{["M","A","E","BL"].filter(t => p[t.toLowerCase()]).join(", ")}]
-                        </div>
+                        <div key={i}>{p.name} [{["M","A","E","BL"].filter(t => p[t.toLowerCase()]).join(", ")}]</div>
                       ))}
                     </td>
                     <td>{v.followUpDate || "-"}</td>
@@ -351,22 +345,14 @@ export default function PatientDetails() {
         )}
       </div>
 
-      {/* ---------- Edit Modal ---------- */}
+      {/* Edit Modal */}
       {editingVisit && (
         <div style={modalOverlay}>
           <div style={modalBox}>
             <h3>Edit Visit</h3>
-            <LabeledInput label="Visit Date" type="date" value={editingVisit.visitDate}
-              onChange={(v) => setEditingVisit((f) => ({ ...f, visitDate: v }))} />
-            <LabeledInput label="Follow-up Date" type="date" value={editingVisit.followUpDate}
-              onChange={(v) => setEditingVisit((f) => ({ ...f, followUpDate: v }))} />
-            <LabeledInput label="Reason for Visit (Symptoms)" value={editingVisit.reason}
-              onChange={(v) => setEditingVisit((f) => ({ ...f, reason: v }))} />
-            <LabeledInput label="Diagnosis" value={editingVisit.diagnosis}
-              onChange={(v) => setEditingVisit((f) => ({ ...f, diagnosis: v }))} />
-            <LabeledInput label="Notes" value={editingVisit.notes}
-              onChange={(v) => setEditingVisit((f) => ({ ...f, notes: v }))} />
-
+            <LabeledInput label="Reason" value={editingVisit.reason ?? ""} onChange={(v) => setEditingVisit((f) => ({ ...f, reason: v }))} />
+            <LabeledInput label="Diagnosis" value={editingVisit.diagnosis ?? ""} onChange={(v) => setEditingVisit((f) => ({ ...f, diagnosis: v }))} />
+            <LabeledInput label="Notes" value={editingVisit.notes ?? ""} onChange={(v) => setEditingVisit((f) => ({ ...f, notes: v }))} />
             <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
               <button onClick={handleEditSave} style={btnPrimary}>Save</button>
               <button onClick={() => setEditingVisit(null)} style={btnSecondary}>Cancel</button>
