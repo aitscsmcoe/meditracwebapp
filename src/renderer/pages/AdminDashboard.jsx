@@ -1,4 +1,3 @@
-// src/renderer/pages/AdminDashboard.jsx
 import React, { useEffect, useState } from "react";
 import {
   collection,
@@ -9,6 +8,7 @@ import {
   Timestamp,
   query,
   where,
+  addDoc
 } from "firebase/firestore";
 import { signOut } from "firebase/auth";
 import { adminDb, adminAuth } from "../services/firebaseAdmin";
@@ -22,7 +22,7 @@ export default function AdminDashboard() {
   const [selectedDoctor, setSelectedDoctor] = useState(null);
   const [message, setMessage] = useState("");
 
-  // load doctors list
+  // Load doctors list
   const loadDoctors = async () => {
     setLoading(true);
     setMessage("");
@@ -42,15 +42,29 @@ export default function AdminDashboard() {
     loadDoctors();
   }, []);
 
-  // safe parse for firestore Timestamp or object
+  // Handle renewal expiry
+  const handleRenewalExpiry = async () => {
+    const now = new Date();
+    doctors.forEach(async (doctor) => {
+      const renewalDate = parseToDate(doctor.expectedRenewalDate);
+      if (renewalDate && renewalDate < now && doctor.status !== "Pending") {
+        const ref = doc(adminDb, "DoctorsRegistered", doctor.id);
+        await updateDoc(ref, { status: "Pending" });
+        updateDoctorInState(doctor.id, { status: "Pending" });
+      }
+    });
+  };
+
+  useEffect(() => {
+    handleRenewalExpiry();
+  }, [doctors]);
+
+  // Safe parse for firestore Timestamp or object
   const parseToDate = (value) => {
     if (!value) return null;
     try {
-      // Firestore Timestamp instance
       if (value instanceof Timestamp) return value.toDate();
-      // If shape { seconds, nanoseconds }
       if (typeof value === "object" && value?.seconds) return new Date(value.seconds * 1000);
-      // string / ISO
       if (typeof value === "string") {
         const d = new Date(value);
         if (!isNaN(d)) return d;
@@ -70,7 +84,7 @@ export default function AdminDashboard() {
   const updateDoctorInState = (id, patch) =>
     setDoctors((prev) => prev.map((d) => (d.id === id ? { ...d, ...patch } : d)));
 
-  // Activate doctor: allowed only when status === "Requested"
+  // Activate doctor
   const handleActivate = async (doctorId) => {
     const doctor = doctors.find((d) => d.id === doctorId);
     if (!doctor) return alert("Doctor not found.");
@@ -90,21 +104,6 @@ export default function AdminDashboard() {
         expectedRenewalDate: Timestamp.fromDate(renewalDate),
       });
 
-      // Clean up ActivationRequests (delete any request for this email)
-      try {
-        const reqQ = query(
-          collection(adminDb, "ActivationRequests"),
-          where("doctorEmail", "==", doctor.email)
-        );
-        const reqSnap = await getDocs(reqQ);
-        for (const r of reqSnap.docs) {
-          await deleteDoc(r.ref);
-        }
-      } catch (cleanupErr) {
-        console.warn("ActivationRequests cleanup failed:", cleanupErr);
-        // continue — not fatal
-      }
-
       updateDoctorInState(doctorId, {
         status: "Active",
         activationDate: Timestamp.fromDate(activationDate),
@@ -118,11 +117,12 @@ export default function AdminDashboard() {
     }
   };
 
-  // Renew: allowed only when status === "Active"
+  // Renew doctor
   const handleRenew = async (doctorId) => {
+    const activationDate = new Date();
     const doctor = doctors.find((d) => d.id === doctorId);
     if (!doctor) return alert("Doctor not found.");
-    if (doctor.status !== "Active") return alert("Renew allowed only when doctor is Active.");
+    // if (doctor.status !=="Active" || doctor.status !== "Suspended") return alert("Renew allowed only when doctor is not Active.");
 
     if (!window.confirm("Renew this doctor's subscription? This sets expected renewal to +1 year from today.")) return;
 
@@ -133,7 +133,12 @@ export default function AdminDashboard() {
       const ref = doc(adminDb, "DoctorsRegistered", doctorId);
       await updateDoc(ref, { expectedRenewalDate: Timestamp.fromDate(renewalDate) });
 
-      updateDoctorInState(doctorId, { expectedRenewalDate: Timestamp.fromDate(renewalDate) });
+      updateDoctorInState(doctorId, {
+        status: "Active",
+        activationDate: Timestamp.fromDate(activationDate),
+        expectedRenewalDate: Timestamp.fromDate(renewalDate) 
+
+        });
       alert("Renewal date updated.");
     } catch (err) {
       console.error("Renew failed:", err);
@@ -141,36 +146,29 @@ export default function AdminDashboard() {
     }
   };
 
-  // Delete doctor record + cleanup activation requests
-  const handleDelete = async (doctorId) => {
+  // Suspend doctor
+  const handleSuspend = async (doctorId) => {
     const doctor = doctors.find((d) => d.id === doctorId);
     if (!doctor) return alert("Doctor not found.");
-    if (!window.confirm("Delete this doctor permanently? This cannot be undone.")) return;
+
+    if (!window.confirm("Suspend this doctor? They will not be able to log in.")) return;
 
     try {
-      await deleteDoc(doc(adminDb, "DoctorsRegistered", doctorId));
+      const ref = doc(adminDb, "DoctorsRegistered", doctorId);
+      await updateDoc(ref, {
+        status: "Suspended",
+      });
 
-      // also remove any activation request
-      try {
-        const reqQ = query(
-          collection(adminDb, "ActivationRequests"),
-          where("doctorEmail", "==", doctor.email)
-        );
-        const reqSnap = await getDocs(reqQ);
-        for (const r of reqSnap.docs) await deleteDoc(r.ref);
-      } catch (cleanupErr) {
-        console.warn("ActivationRequests cleanup on delete failed:", cleanupErr);
-      }
+      updateDoctorInState(doctorId, { status: "Suspended" });
 
-      setDoctors((prev) => prev.filter((d) => d.id !== doctorId));
-      if (selectedDoctor?.id === doctorId) setSelectedDoctor(null);
-      alert("Doctor deleted.");
+      alert("Doctor suspended successfully.");
     } catch (err) {
-      console.error("Delete failed:", err);
-      alert("Delete failed. See console.");
+      console.error("Suspend failed:", err);
+      alert("Suspend failed. Check console for details.");
     }
   };
 
+  // Logout
   const handleLogout = async () => {
     try {
       await signOut(adminAuth);
@@ -220,7 +218,8 @@ export default function AdminDashboard() {
                   doctors.map((d) => {
                     const status = d.status || "Registered";
                     const activateEnabled = status === "Requested";
-                    const renewEnabled = status === "Active";
+                    const renewEnabled = status === "Active" || status ==="Suspended";
+                    const suspendEnabled = status !== "Suspended";
                     const activationDisplay = formatDate(d.activationDate);
                     const renewalDisplay = formatDate(d.expectedRenewalDate);
                     const registrationDisplay = formatDate(d.registrationDate);
@@ -235,7 +234,8 @@ export default function AdminDashboard() {
                           <span style={{ fontWeight: 600, color:
                             status === "Active" ? "green" :
                             status === "Requested" ? "#f57c00" :
-                            status === "Rejected" ? "red" : "#555"
+                            status === "Rejected" ? "red" :
+                            status === "Suspended" ? "gray" : "#555"
                           }}>{status}</span>
                         </td>
                         <td style={td}>{activationDisplay}</td>
@@ -263,6 +263,13 @@ export default function AdminDashboard() {
 
                           <button onClick={() => setSelectedDoctor(d)} style={btnView}>View</button>
                           <button onClick={() => handleDelete(d.id)} style={btnDelete}>Delete</button>
+                          <button
+                            onClick={() => handleSuspend(d.id)}
+                            disabled={!suspendEnabled}
+                            style={{ ...btnSuspend, ...(suspendEnabled ? {} : btnDisabled) }}
+                          >
+                            Suspend
+                          </button>
                         </td>
                       </tr>
                     );
@@ -320,6 +327,7 @@ const btnDelete = { background: "#e53935", color: "white", border: "none", paddi
 const btnView = { background: "#ffa000", color: "white", border: "none", padding: "6px 10px", borderRadius: 6, cursor: "pointer" };
 const btnSecondary = { background: "white", color: "#1565c0", border: "1px solid #1565c0", padding: "6px 10px", borderRadius: 6, cursor: "pointer" };
 const btnDanger = { background: "#ef5350", color: "white", border: "none", padding: "6px 10px", borderRadius: 6, cursor: "pointer" };
+const btnSuspend = { background: "#9e9e9e", color: "white", border: "none", padding: "6px 10px", borderRadius: 6, cursor: "pointer" };
 
 const btnDisabled = { opacity: 0.5, cursor: "not-allowed" };
 
