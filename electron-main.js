@@ -1,75 +1,54 @@
-﻿// electron-main.js
-const { app, BrowserWindow, ipcMain } = require("electron");
+﻿const { app, BrowserWindow, ipcMain } = require("electron");
 const path = require("path");
 
-// ✅ Keep a global reference to the window
+// Create app window
 let mainWindow;
 
-// ✅ Create app window
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
-    show: false, // prevent flicker until ready
+    show: false,
     webPreferences: {
       preload: path.join(__dirname, "electron-preload.js"),
       contextIsolation: true,
-      nodeIntegration: false, // more secure
-      sandbox: false,
+      nodeIntegration: false,
+      sandbox: true,
     },
   });
 
-  // ✅ Load appropriate content
   if (!app.isPackaged) {
-    // Dev mode → use Vite dev server
-    mainWindow.loadURL("http://localhost:5173");
+    mainWindow.loadURL("http://localhost:5173");  // Dev mode
   } else {
-    // Production → use built files
-    mainWindow.loadFile(path.join(__dirname, "dist", "index.html"));
+    mainWindow.loadFile(path.join(__dirname, "dist", "index.html"));  // Prod mode
   }
 
-  // ✅ Show only when ready
   mainWindow.once("ready-to-show", () => {
     mainWindow.show();
   });
 
-  // ✅ (Optional) Uncomment this line ONLY when debugging dev mode
-  // mainWindow.webContents.openDevTools({ mode: "detach" });
-
-  // ✅ Handle window closed
   mainWindow.on("closed", () => {
     mainWindow = null;
   });
 }
 
-// ✅ Handle events from Renderer
+// IPC Main Process Event Handling (this should be in the main process only)
 ipcMain.on("message-from-ui", (event, msg) => {
-  console.log("📨 Message from renderer:", msg);
+  console.log("Message from renderer:", msg);
 });
 
-// ✅ Print handler (for future use)
-ipcMain.on("print-content", (event, content) => {
-  const printWin = new BrowserWindow({ show: false });
-  printWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(content)}`);
-  printWin.webContents.on("did-finish-load", () => {
-    printWin.webContents.print({}, (success) => {
-      if (!success) console.error("❌ Print failed");
-      printWin.close();
-    });
-  });
-});
-
-
-// ✅ App Lifecycle Events
+// App Lifecycle
 app.whenReady().then(() => {
   createWindow();
 
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (BrowserWindow.getAllWindows().length === 0) {
+      createWindow();
+    }
   });
 });
 
-// ✅ Close app completely (Windows/Linux)
+// Quit when all windows are closed
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
