@@ -260,6 +260,7 @@ export default function DoctorDashboard() {
             </div>
 
             <h3 style={{ color: "#1565c0", marginTop: 15 }}>Doctor Profile Details</h3>
+            <h4 style={{ color: "#e762e7ff", marginTop: 15 }}>Note: Fileds on this page you can NOT directly edit easily for safety. Recommeded to copy past required details.</h4>
             <div style={grid}>
               <Field label="Mobile" value={form.mobile} editable={editing} onChange={(v) => setForm({ ...form, mobile: v })} />
               <Field label="Clinic Name" value={form.clinicName} editable={editing} onChange={(v) => setForm({ ...form, clinicName: v })} />
