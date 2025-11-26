@@ -20,7 +20,7 @@ import {
 import { getFirestore as getDoctorFs } from "firebase/firestore";
 import PatientDetails from "./PatientDetails"; // inline sub-tab rendering
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10000;
 
 export default function DoctorPatients({ doctor }) {
   /* ---------------------- Shared Firebase App ---------------------- */
@@ -603,7 +603,7 @@ const input = {
   marginBottom: 8,
 };
 const popupMessageBox = {
-  color: "pink",
+  color: "orange",
   fontWeight: "bold",
   marginTop: "10px",
 };

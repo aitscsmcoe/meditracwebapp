@@ -44,9 +44,8 @@ export default function ActivationPage({ setUserType }) {
         <h2>✅ Activation Request Sent</h2>
         <p>
           Thank you, Dr. {doctorName}. Your request has been received.
-          <br />
-          Contact your app provider for your activation code.
         </p>
+        <h3 style={{color: 'orange'}}>Contact your app provider for your account activation. Whatsapp only-8830680737</h3>
       </div>
     );
 

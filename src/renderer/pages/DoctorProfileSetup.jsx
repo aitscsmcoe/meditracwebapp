@@ -177,7 +177,7 @@ export default function DoctorProfileSetup() {
       });
 
       setForm((p) => ({ ...p, status: "Requested" }));
-      setMessage("Activation requested. Please wait for admin approval.");
+      setMessage("Activation requested. Please contact admin for approval, whatsapp only- 8830680737.");
     } catch (err) {
       console.error("RequestActivation:", err);
       setMessage("Failed to request activation. See console.");

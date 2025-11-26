@@ -85,7 +85,7 @@ export default function DoctorLoginPage() {
         if (status === "Active") {
           navigate("/doctor-dashboard");
         } else if (status === "Requested") {
-          setMessage("Your activation request is pending admin approval.");
+          setMessage("Your activation request is pending for approval, whatsapp only -8830680737");
           // keep doctor on login/profile page or route to a read-only profile page; we'll keep here
         } else {
           // Registered or other: redirect to profile setup to complete details
