@@ -33,7 +33,7 @@ export default function DoctorDashboard() {
   const [cfgError, setCfgError] = useState("");
   const cfgRef = useRef(null);
 
-  // doctor profile form (now includes degree/specialization/experienceYears)
+  // doctor profile form
   const [form, setForm] = useState({
     mobile: "",
     clinicName: "",
@@ -53,6 +53,11 @@ export default function DoctorDashboard() {
       if (snap.exists()) {
         const data = snap.data();
         setDoctor(data);
+        localStorage.setItem("dClinicname", data.clinicName || "-")
+        localStorage.setItem("dClinicaddress", data.clinicAddress || "-")
+        localStorage.setItem("dDegree", data.degree || "-")
+        localStorage.setItem("dSp", data.specialization || "-")
+        localStorage.setItem("dMobile", data.mobile || "-")
         setForm({
           mobile: data.mobile || "",
           clinicName: data.clinicName || "",
@@ -195,7 +200,7 @@ export default function DoctorDashboard() {
         setCfgError("⚠️ Firestore connection lost.");
       }
     };
-    const id = setInterval(check, 600000); // 10 minutes
+    const id = setInterval(check, 1800000); // 30 minutes
     check();
     return () => {
       mounted = false;
@@ -218,6 +223,7 @@ export default function DoctorDashboard() {
 
   // ---------- Tabs ----------
   const patientsTabDisabled = cfgStatus !== "ok";
+  localStorage.setItem("dName", doctor.doctorName || "-")
 
   const DashboardTab = () => (
     <div style={tabContainer}>
