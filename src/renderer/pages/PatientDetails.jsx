@@ -200,7 +200,7 @@ export default function PatientDetails({ id: propId, inline = false }) {
           .label { font-weight: 600; }
           .label1 { font-weight: 600; margin-left:300px;}
           table { width:100%; border-collapse:collapse; margin-top:12px; }
-          th,td { border:1px solid #ccccccff; padding:4px; text-align:center; }
+          th,td { border:1px solid #ccccccff; padding:3px; text-align:center; }
           th { background:#f0f5ff; }
           .section { margin-top:10px; }
           .footer { text-align:right; font-size:11px; color:#777; margin-top:20px; }

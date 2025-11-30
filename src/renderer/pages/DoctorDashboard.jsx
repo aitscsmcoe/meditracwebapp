@@ -53,6 +53,7 @@ export default function DoctorDashboard() {
       if (snap.exists()) {
         const data = snap.data();
         setDoctor(data);
+        localStorage.setItem("dName", data.doctorName || "-");
         localStorage.setItem("dClinicname", data.clinicName || "-")
         localStorage.setItem("dClinicaddress", data.clinicAddress || "-")
         localStorage.setItem("dDegree", data.degree || "-")
@@ -186,7 +187,7 @@ export default function DoctorDashboard() {
     }
   }, [cfgText, doctor]);
 
-  // ---------- Real-time connection monitor (every 10 min) ----------
+  // ---------- Real-time connection monitor (every 30 min) ----------
   useEffect(() => {
     if (!doctorFs) return;
     let mounted = true;
@@ -223,7 +224,6 @@ export default function DoctorDashboard() {
 
   // ---------- Tabs ----------
   const patientsTabDisabled = cfgStatus !== "ok";
-  localStorage.setItem("dName", doctor.doctorName || "-")
 
   const DashboardTab = () => (
     <div style={tabContainer}>

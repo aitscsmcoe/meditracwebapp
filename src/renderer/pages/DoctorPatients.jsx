@@ -8,6 +8,7 @@ import {
   orderBy,
   limit,
   getCountFromServer, // for total patients
+  collectionGroup,    // for Visits across all patients
 } from "firebase/firestore";
 import dayjs from "dayjs";
 import { initializeApp, getApps } from "firebase/app";
@@ -79,6 +80,13 @@ export default function DoctorPatients({ doctor }) {
   const [page, setPage] = useState(1);
   const [totalPatients, setTotalPatients] = useState(0);
 
+  /* ---------- Visits between dates state ---------- */
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [rangeVisitsCount, setRangeVisitsCount] = useState(null);
+  const [rangeVisitsLoading, setRangeVisitsLoading] = useState(false);
+  const [rangeVisitsError, setRangeVisitsError] = useState("");
+
   /* ---------------------- Auto Connection ---------------------- */
   useEffect(() => {
     if (clinicAuth && doctor?.email && clinicAuth.currentUser?.email === doctor.email) {
@@ -148,6 +156,52 @@ export default function DoctorPatients({ doctor }) {
   useEffect(() => {
     if (connected && subTab === "list") fetchPatients();
   }, [connected, subTab, page, fetchPatients]);
+
+  /* ---------------------- Count Visits Between Dates ---------------------- */
+  const handleCountVisitsInRange = async () => {
+    setRangeVisitsError("");
+    setRangeVisitsCount(null);
+
+    if (!clinicFs || !connected) {
+      setRangeVisitsError("Please connect first.");
+      return;
+    }
+    if (!fromDate || !toDate) {
+      setRangeVisitsError("Please select both From and To dates.");
+      return;
+    }
+    if (toDate < fromDate) {
+      setRangeVisitsError("To date cannot be before From date.");
+      return;
+    }
+
+    setRangeVisitsLoading(true);
+    try {
+      // Get all Visits docs, filter by visitDate string between fromDate and toDate (inclusive)
+      const visitsQ = collectionGroup(clinicFs, "Visits");
+      const visitsSnap = await getDocs(visitsQ);
+
+      let count = 0;
+      visitsSnap.forEach((docSnap) => {
+        const data = docSnap.data();
+        const vDateStr = data?.visitDate;
+        if (!vDateStr) return;
+
+        // visitDate is stored as "YYYY-MM-DD" string, so lexicographic compare is safe
+        if (vDateStr >= fromDate && vDateStr <= toDate) {
+          count += 1; // count every visit (not unique patients)
+        }
+      });
+
+      setRangeVisitsCount(count);
+    } catch (err) {
+      console.error("Count visits in range failed:", err);
+      setRangeVisitsError("Failed to load visits for selected range.");
+      setRangeVisitsCount(null);
+    } finally {
+      setRangeVisitsLoading(false);
+    }
+  };
 
   /* ---------------------- Add Patient ---------------------- */
   const onlyDigits = (s) => (s ?? "").replace(/\D+/g, "");
@@ -362,8 +416,48 @@ export default function DoctorPatients({ doctor }) {
               </div>
 
               <div style={{ marginBottom: 8 }}>
-                Total Registered Patients: {totalPatients}
+                Total Registered Patients: <b>{totalPatients}</b>
               </div>
+
+              {/* Visits between dates block */}
+              <div
+                style={{
+                  marginBottom: 12,
+                  display: "flex",
+                  flexWrap: "wrap",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+              >
+                <span>Total visits between dates:</span>
+                <input
+                  type="date"
+                  value={fromDate}
+                  onChange={(e) => setFromDate(e.target.value)}
+                  style={{ ...input, maxWidth: 180, marginBottom: 0 }}
+                />
+                <span>to</span>
+                <input
+                  type="date"
+                  value={toDate}
+                  onChange={(e) => setToDate(e.target.value)}
+                  style={{ ...input, maxWidth: 180, marginBottom: 0 }}
+                />
+                <button
+                  type="button"
+                  style={btnSecondary}
+                  onClick={handleCountVisitsInRange}
+                >
+                  Get Count
+                </button>
+                {rangeVisitsLoading && <span>Calculating...</span>}
+                {!rangeVisitsLoading && rangeVisitsCount !== null && (
+                  <span>
+                    Total visits: <b>{rangeVisitsCount}</b>
+                  </span>
+                )}
+              </div>
+              {rangeVisitsError && <div style={warnBox}>{rangeVisitsError}</div>}
 
               {loading ? (
                 <p>Loading...</p>
