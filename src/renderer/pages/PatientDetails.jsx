@@ -65,11 +65,19 @@ export default function PatientDetails({ id: propId, inline = false }) {
 
   const [prescriptionEntry, setPrescriptionEntry] = useState({
     name: "",
+    dose: "",  // Added dose field
     m: false,
     a: false,
     e: false,
     bl: false,
   });
+
+  const [suggestions, setSuggestions] = useState(
+    JSON.parse(localStorage.getItem("medicineSuggestions")) || []
+  );
+
+  const [filteredSuggestions, setFilteredSuggestions] = useState([]);
+  const [isSuggestionsVisible, setIsSuggestionsVisible] = useState(true); // For toggling suggestions visibility
 
   /* ---------- Load Patient ---------- */
   useEffect(() => {
@@ -131,7 +139,7 @@ export default function PatientDetails({ id: propId, inline = false }) {
     }
   };
 
-  /* ---------- Edit Visit ---------- */
+   /* ---------- Edit Visit ---------- */
   const handleEditSave = async () => {
     if (!editingVisit) return;
     try {
@@ -145,6 +153,8 @@ export default function PatientDetails({ id: propId, inline = false }) {
     }
   };
 
+     /* ---------- Delete Visit ---------- */
+
   const handleDeleteVisit = async (visitId) => {
     if (!window.confirm("Delete this visit?")) return;
     try {
@@ -156,6 +166,7 @@ export default function PatientDetails({ id: propId, inline = false }) {
     }
   };
 
+
   /* ---------- Prescription Helpers ---------- */
   const addPrescription = () => {
     if (!prescriptionEntry.name.trim()) return;
@@ -163,8 +174,15 @@ export default function PatientDetails({ id: propId, inline = false }) {
       ...v,
       prescriptions: [...v.prescriptions, prescriptionEntry],
     }));
-    setPrescriptionEntry({ name: "", m: false, a: false, e: false, bl: false });
+
+    // Save to localStorage for future suggestions
+    const updatedSuggestions = [...new Set([...suggestions, prescriptionEntry.name])];
+    setSuggestions(updatedSuggestions);
+    localStorage.setItem("medicineSuggestions", JSON.stringify(updatedSuggestions));
+
+    setPrescriptionEntry({ name: "", dose: "", m: false, a: false, e: false, bl: false });
   };
+
   const removePrescription = (i) => {
     setNewVisit((v) => ({
       ...v,
@@ -172,15 +190,33 @@ export default function PatientDetails({ id: propId, inline = false }) {
     }));
   };
 
+  const handleMedicineInputChange = (e) => {
+    const input = e.target.value;
+    setPrescriptionEntry((prev) => ({ ...prev, name: input }));
 
-   /* ---------- Get dctors details from Doctors dashboard from local storage ---------- */
-   const docClinicName= localStorage.getItem("dClinicname");
-   const docClinicAddress= localStorage.getItem("dClinicaddress");
-   const docName= localStorage.getItem("dName");
-   const docDegree= localStorage.getItem("dDegree");
-   const docSp= localStorage.getItem("dSp");
-   const docMobile= localStorage.getItem("dMobile");
+    // Filter suggestions based on user input
+    const filtered = suggestions.filter((medicine) =>
+      medicine.toLowerCase().includes(input.toLowerCase())
+    );
+    setFilteredSuggestions(filtered);
+  };
 
+  const handleSuggestionClick = (suggestion) => {
+    setPrescriptionEntry((prev) => ({ ...prev, name: suggestion }));
+    setFilteredSuggestions([]);  // Clear suggestions after selection
+  };
+
+  const toggleSuggestionsVisibility = () => {
+    setIsSuggestionsVisible(!isSuggestionsVisible); // Toggle the visibility of suggestions list
+  };
+
+  /* ---------- Get doctor's details from Doctors dashboard from local storage ---------- */
+  const docClinicName = localStorage.getItem("dClinicname");
+  const docClinicAddress = localStorage.getItem("dClinicaddress");
+  const docName = localStorage.getItem("dName");
+  const docDegree = localStorage.getItem("dDegree");
+  const docSp = localStorage.getItem("dSp");
+  const docMobile = localStorage.getItem("dMobile");
 
   /* ---------- Print Visit ---------- */
   const printVisit = (v) => {
@@ -191,11 +227,11 @@ export default function PatientDetails({ id: propId, inline = false }) {
       <head>
         <title>Prescription - ${patient?.firstName || ""}</title>
         <style>
-          body { font-family:'Segoe UI',sans-serif; padding:24px; border: 4px solid #6a6b83ff;;}
+          body { font-family:'Segoe UI',sans-serif; padding:24px; border: 4px solid #6a6b83ff;; position:relative; }
           .clinic {color: #d6148cff; font-size:32px;font-family:Georgia; text-align:center;}
           .clinicAddress {font-size:16px;font-family:Areal; text-align:center;}
           .doctorName {font-size:18px;font-family:Areal;}
-          .spacer { height:10px; }
+          .swasthasya { position: absolute; top: 20%; left: 10%; font-size: 50px; opacity: 0.1; transform: rotate(-45deg); color: orange; font-family: "Georgia", sans-serif; }
           .bline{ border:2px solid #6a6b83ff; }
           .label { font-weight: 600; }
           .label1 { font-weight: 600; margin-left:300px;}
@@ -204,24 +240,28 @@ export default function PatientDetails({ id: propId, inline = false }) {
           th { background:#f0f5ff; }
           .section { margin-top:10px; }
           .footer { text-align:right; font-size:11px; color:#777; margin-top:20px; }
+          .doctor-details { background-color: #FFCC80; padding: 10px; border-radius: 8px; }
+          .doctor-symbol { position: absolute; top: 10px; left: 10px; font-size: 30px; color: red; }
         </style>
       </head>
       <body>
+        <div class="doctor-symbol">+</div>
+        <div class="swasthasya">स्वस्थस्य स्वास्थ्यरक्षणम्</div>
         <div class="clinic"><b> ${docClinicName} </b></div>
         <div class="clinicAddress">${docClinicAddress}</div>
-        <div class="doctorName"><b> Doctor: </b> ${docName} [${docDegree} (${docSp})]</div>
+        <div class="doctor-details"><b> Doctor: </b> ${docName} [${docDegree} (${docSp})]</div>
         <div><b>Mobile- </b> ${docMobile}</div>
         <div class="spacer"></div>
-        <hr class= "bline">
+        <hr class="bline">
         <div><span class="label">Visit Date:</span> ${v.visitDate || "-"} <span class="label1">Follow-up Date:</span> ${v.followUpDate || "-"}</div>
         <div><span class="label">Patient Name:</span> ${patient?.firstName || "-"}  ${patient?.lastName || "-"}, &nbsp;
         <b class="label"> (${age} Yrs * ${patient?.bloodGroup || "-"} * ${patient?.weight || "-"} kg * ${patient?.gender || "-"})</b></div>
         <div class="section">
           <h4>Prescriptions</h4>
           <table>
-            <tr><th>Medicine</th><th>M</th><th>A</th><th>E</th><th>BM?</th></tr>
+            <tr><th>Medicine</th><th>Dose</th><th>M</th><th>A</th><th>E</th><th>BM?</th></tr>
             ${(v.prescriptions || []).map(p =>
-              `<tr><td>${p.name}</td><td>${p.m ? "✔" : ""}</td><td>${p.a ? "✔" : ""}</td><td>${p.e ? "✔" : ""}</td><td>${p.bl ? "✔" : ""}</td></tr>`
+              `<tr><td>${p.name}</td><td> ${p.dose}</td><td>${p.m ? "✔" : ""}</td><td>${p.a ? "✔" : ""}</td><td>${p.e ? "✔" : ""}</td><td>${p.bl ? "✔" : ""}</td></tr>`
             ).join("")}
           </table>
         </div>
@@ -278,7 +318,26 @@ export default function PatientDetails({ id: propId, inline = false }) {
               type="text"
               placeholder="Medicine name"
               value={prescriptionEntry.name ?? ""}
-              onChange={(e) => setPrescriptionEntry((p) => ({ ...p, name: e.target.value }))}
+              onChange={handleMedicineInputChange}
+              style={input}
+            />
+            {isSuggestionsVisible && filteredSuggestions.length > 0 && (
+              <div style={{ position: "relative" }}>
+                <ul style={suggestionListStyle}>
+                  {filteredSuggestions.map((suggestion, index) => (
+                    <li key={index} style={suggestionItemStyle} onClick={() => handleSuggestionClick(suggestion)}>
+                      {suggestion}
+                    </li>
+                  ))}
+                </ul>
+                <button onClick={toggleSuggestionsVisibility} style={closeButtonStyle}><b>X</b></button>
+              </div>
+            )}
+            <input
+              type="text"
+              placeholder="Dose (e.g., 10mg)"
+              value={prescriptionEntry.dose ?? ""}
+              onChange={(e) => setPrescriptionEntry((p) => ({ ...p, dose: e.target.value }))}
               style={input}
             />
             <div style={checkboxGroup}>
@@ -302,6 +361,7 @@ export default function PatientDetails({ id: propId, inline = false }) {
                 {newVisit.prescriptions.map((p, i) => (
                   <tr key={i}>
                     <td>{p.name}</td>
+                    <td>{p.dose}</td>
                     <td>{p.m ? "✔" : ""}</td>
                     <td>{p.a ? "✔" : ""}</td>
                     <td>{p.e ? "✔" : ""}</td>
@@ -379,6 +439,7 @@ export default function PatientDetails({ id: propId, inline = false }) {
   );
 }
 
+
 /* ---------- Components & Styles ---------- */
 function LabeledInput({ label, value, onChange, type = "text", required = false }) {
   return (
@@ -389,6 +450,35 @@ function LabeledInput({ label, value, onChange, type = "text", required = false 
   );
 }
 
+const suggestionListStyle = {
+  border: "1px solid #4d2d2dff",
+  borderRadius: 5,
+  padding: 0,
+  margin: 0,
+  position: "absolute",
+  top: "15px", // Adjusted to appear below the input field
+  maxHeight: "100px",
+  overflowY: "auto",
+  backgroundColor: "#a0ebf5ff",
+  zIndex: 9999
+};
+
+const suggestionItemStyle = {
+  padding: 5,
+  cursor: "pointer"
+};
+
+const closeButtonStyle = {
+  position: "absolute",
+  top: 0,
+  left:5,
+  background: "transparent",
+  border: "none",
+  fontSize: "16px",
+  backgroundColor: "#bef1f8ff",
+  color: "red",
+  cursor: "pointer"
+};
 const outer = { padding: 20, background: "#f4f7fc", minHeight: "100vh", fontFamily: "Segoe UI, sans-serif" };
 const btnBack = { background: "white", border: "1px solid #1565c0", color: "#1565c0", borderRadius: 6, padding: "6px 12px", cursor: "pointer", marginBottom: 12 };
 const headerBox = { background: "white", padding: 16, borderRadius: 10, marginBottom: 16, boxShadow: "0 2px 8px rgba(0,0,0,0.1)" };
@@ -406,8 +496,8 @@ const btnDangerTiny = { background: "#e53935", color: "white", border: "none", b
 const table = { width: "100%", borderCollapse: "collapse", border: "1px solid #eaeaea" };
 const miniTable = { width: "100%", marginTop: 10, borderCollapse: "collapse", border: "1px solid #eaeaea", fontSize: 13 };
 const thead = { background: "#f0f5ff", color: "#0d47a1" };
-const prescriptionRow = { display: "flex", flexDirection: "column", gap: 8, marginBottom: 10 };
-const checkboxGroup = { display: "flex", justifyContent: "center", gap: 12, alignItems: "center", flexWrap: "wrap" };
+const prescriptionRow = { display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 };
+const checkboxGroup = { display: "flex", justifyContent: "center", gap: 10, alignItems: "center", flexWrap: "wrap" };
 const checkboxLabel = { display: "flex", alignItems: "center", gap: 4 };
 const modalOverlay = { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.4)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 9999 };
 const modalBox = { background: "white", padding: 20, borderRadius: 10, boxShadow: "0 2px 10px rgba(0,0,0,0.2)", width: "90%", maxWidth: 500 };
