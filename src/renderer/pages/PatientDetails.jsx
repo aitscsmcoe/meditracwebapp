@@ -231,7 +231,7 @@ export default function PatientDetails({ id: propId, inline = false }) {
           .clinic {color: #d6148cff; font-size:32px;font-family:Georgia; text-align:center;}
           .clinicAddress {font-size:16px;font-family:Areal; text-align:center;}
           .doctorName {font-size:18px;font-family:Areal;}
-          .swasthasya { position: absolute; top: 20%; left: 10%; font-size: 50px; opacity: 0.1; transform: rotate(-45deg); color: orange; font-family: "Georgia", sans-serif; }
+          .swasthasya { position: absolute; top: 33%; left: 30%; font-size: 70px; opacity: 0.1; transform: rotate(-45deg); color: orange; font-family: "Georgia", sans-serif; }
           .bline{ border:2px solid #6a6b83ff; }
           .label { font-weight: 600; }
           .label1 { font-weight: 600; margin-left:300px;}
@@ -239,18 +239,20 @@ export default function PatientDetails({ id: propId, inline = false }) {
           th,td { border:1px solid #ccccccff; padding:3px; text-align:center; }
           th { background:#f0f5ff; }
           .section { margin-top:10px; }
-          .footer { text-align:right; font-size:11px; color:#777; margin-top:20px; }
-          .doctor-details { background-color: #FFCC80; padding: 10px; border-radius: 8px; }
-          .doctor-symbol { position: absolute; top: 10px; left: 10px; font-size: 30px; color: red; }
+          .footer { text-align:right; font-family: 'Dancing Script', cursive;font-size:11px; color:#777; margin-top:20px; }
+          .doctor-details { background-color: #f7e0e7ff; padding: 10px; border-radius: 8px; }
+          .doctor-symbol { position: absolute; top: 0px; left: 20px; z-index: 10; font-size: 81px; color: red; }
         </style>
       </head>
       <body>
-        <div class="doctor-symbol">+</div>
-        <div class="swasthasya">स्वस्थस्य स्वास्थ्यरक्षणम्</div>
+        <div class="doctor-symbol"><b>+</b></div>
+        <div class="swasthasya"><b>स्वस्थस्य <br> स्वास्थ्य <br> रक्षणम् ||</b></div>
+        <div class="doctor-details">
         <div class="clinic"><b> ${docClinicName} </b></div>
-        <div class="clinicAddress">${docClinicAddress}</div>
-        <div class="doctor-details"><b> Doctor: </b> ${docName} [${docDegree} (${docSp})]</div>
+        <div class="clinicAddress"><b>${docClinicAddress}</b></div>
+        <div class="doctor-detail"><b> Doctor: </b> ${docName} [${docDegree} (${docSp})]</div>
         <div><b>Mobile- </b> ${docMobile}</div>
+        </div>
         <div class="spacer"></div>
         <hr class="bline">
         <div><span class="label">Visit Date:</span> ${v.visitDate || "-"} <span class="label1">Follow-up Date:</span> ${v.followUpDate || "-"}</div>
@@ -268,7 +270,7 @@ export default function PatientDetails({ id: propId, inline = false }) {
 
         ${v.notes ? `<div class="section"><span class="label">Notes:</span> ${v.notes}</div>` : ""}
         <br>
-        <div class="footer">${docName} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</div>
+        <div class="footer"><i>${docName} </i>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</div>
         <h5 style="color: #3bcc53ff;">Go Green, save pages, print only if needed!</h5>
         <script>window.onload=function(){window.print();}</script>
       </body>

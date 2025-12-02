@@ -252,6 +252,10 @@ export default function DoctorDashboard() {
             </div>
           </div>
 
+          <div style={{ display: "flex", gap: 8, marginTop: 10, justifyContent: "flex-end" }}>
+            <button onClick={handleSaveConfig} style={btnPrimary}>Save Config</button>
+          </div>
+
           {/* Profile edit */}
           <div style={editBox}>
             <div style={{ display: "flex", justifyContent: "flex-start", gap: 10 }}>

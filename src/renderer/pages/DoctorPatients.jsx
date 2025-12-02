@@ -405,16 +405,7 @@ export default function DoctorPatients({ doctor }) {
           {subTab === "list" && (
             <div style={listCard}>
               {permissionError && <div style={warnBox}>{permissionError}</div>}
-              <div style={toolbar}>
-                <input
-                  type="text"
-                  value={search ?? ""}
-                  onChange={(e) => setSearch(e.target.value)}
-                  style={searchBox}
-                  placeholder="Search..."
-                />
-              </div>
-
+              
               <div style={{ marginBottom: 8 }}>
                 Total Registered Patients: <b>{totalPatients}</b>
               </div>
@@ -456,6 +447,15 @@ export default function DoctorPatients({ doctor }) {
                     Total visits: <b>{rangeVisitsCount}</b>
                   </span>
                 )}
+              </div>
+              <div style={toolbar}>
+                <input
+                  type="text"
+                  value={search ?? ""}
+                  onChange={(e) => setSearch(e.target.value)}
+                  style={searchBox}
+                  placeholder="Search..."
+                />
               </div>
               {rangeVisitsError && <div style={warnBox}>{rangeVisitsError}</div>}
 
