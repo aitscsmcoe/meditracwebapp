@@ -139,7 +139,7 @@ export default function PatientDetails({ id: propId, inline = false }) {
     }
   };
 
-   /* ---------- Edit Visit ---------- */
+  /* ---------- Edit Visit ---------- */
   const handleEditSave = async () => {
     if (!editingVisit) return;
     try {
@@ -153,8 +153,7 @@ export default function PatientDetails({ id: propId, inline = false }) {
     }
   };
 
-     /* ---------- Delete Visit ---------- */
-
+  /* ---------- Delete Visit ---------- */
   const handleDeleteVisit = async (visitId) => {
     if (!window.confirm("Delete this visit?")) return;
     try {
@@ -165,7 +164,6 @@ export default function PatientDetails({ id: propId, inline = false }) {
       alert("Delete failed.");
     }
   };
-
 
   /* ---------- Prescription Helpers ---------- */
   const addPrescription = () => {
@@ -231,10 +229,10 @@ export default function PatientDetails({ id: propId, inline = false }) {
           .clinic {color: #d6148cff; font-size:32px;font-family:Georgia; text-align:center;}
           .clinicAddress {font-size:16px;font-family:Areal; text-align:center;}
           .doctorName {font-size:18px;font-family:Areal;}
-          .swasthasya { position: absolute; top: 33%; left: 30%; font-size: 70px; opacity: 0.1; transform: rotate(-45deg); color: orange; font-family: "Georgia", sans-serif; }
+          .swasthasya { position: absolute; top: 25%; left: 30%; font-size: 90px; opacity: 0.1; transform: rotate(-45deg); color: orange; font-family: "Georgia", sans-serif; }
           .bline{ border:2px solid #6a6b83ff; }
           .label { font-weight: 600; }
-          .label1 { font-weight: 600; margin-left:300px;}
+          .label1 { font-weight: 600; margin-left:250px;}
           table { width:100%; border-collapse:collapse; margin-top:12px; }
           th,td { border:1px solid #ccccccff; padding:3px; text-align:center; }
           th { background:#f0f5ff; }
@@ -242,6 +240,22 @@ export default function PatientDetails({ id: propId, inline = false }) {
           .footer { text-align:right; font-family: 'Dancing Script', cursive;font-size:11px; color:#777; margin-top:20px; }
           .doctor-details { background-color: #f7e0e7ff; padding: 10px; border-radius: 8px; }
           .doctor-symbol { position: absolute; top: 0px; left: 20px; z-index: 10; font-size: 81px; color: red; }
+
+          /* --- Ensure background colors print --- */
+          @media print {
+            body {
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+            .doctor-details {
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+            .swasthasya {
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+          }
         </style>
       </head>
       <body>
