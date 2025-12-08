@@ -54,6 +54,7 @@ export default function DoctorDashboard() {
         const data = snap.data();
         setDoctor(data);
         localStorage.setItem("dName", data.doctorName || "-");
+        localStorage.setItem("dRegNum", data.doctorRegNum || "-");
         localStorage.setItem("dClinicname", data.clinicName || "-")
         localStorage.setItem("dClinicaddress", data.clinicAddress || "-")
         localStorage.setItem("dDegree", data.degree || "-")
@@ -232,6 +233,7 @@ export default function DoctorDashboard() {
           {/* Summary header */}
           <div style={summaryBox}>
             <div><b>Doctor:</b> {doctor.doctorName || "-"}</div>
+            <div><b>Registration Number:</b> {doctor.doctorRegNum || "-"}</div>
             <div><b>Email:</b> {doctor.email || "-"}</div>
             <div><b>Status:</b> {doctor.status || "Registered"}</div>
             <div><b>Registration:</b> {fmt(doctor.registrationDate)}</div>

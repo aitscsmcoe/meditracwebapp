@@ -58,6 +58,7 @@ export default function PatientDetails({ id: propId, inline = false }) {
     visitDate: dayjs().format("YYYY-MM-DD"),
     reason: "",
     diagnosis: "",
+    bloodPressure: "",
     prescriptions: [],
     notes: "",
     followUpDate: "",
@@ -126,6 +127,7 @@ export default function PatientDetails({ id: propId, inline = false }) {
         visitDate: dayjs().format("YYYY-MM-DD"),
         reason: "",
         diagnosis: "",
+        bloodPressure: "",
         prescriptions: [],
         notes: "",
         followUpDate: "",
@@ -212,6 +214,7 @@ export default function PatientDetails({ id: propId, inline = false }) {
   const docClinicName = localStorage.getItem("dClinicname");
   const docClinicAddress = localStorage.getItem("dClinicaddress");
   const docName = localStorage.getItem("dName");
+  const docRegNum = localStorage.getItem("dRegNum");
   const docDegree = localStorage.getItem("dDegree");
   const docSp = localStorage.getItem("dSp");
   const docMobile = localStorage.getItem("dMobile");
@@ -229,7 +232,7 @@ export default function PatientDetails({ id: propId, inline = false }) {
           .clinic {color: #d6148cff; font-size:32px;font-family:Georgia; text-align:center;}
           .clinicAddress {font-size:16px;font-family:Areal; text-align:center;}
           .doctorName {font-size:18px;font-family:Areal;}
-          .swasthasya { position: absolute; top: 25%; left: 30%; font-size: 90px; opacity: 0.1; transform: rotate(-45deg); color: orange; font-family: "Georgia", sans-serif; }
+          .swasthasya { position: absolute; top: %; left: 30%; font-size: 90px; opacity: 0.1; transform: rotate(-45deg); color: orange; font-family: "Georgia", sans-serif; }
           .bline{ border:2px solid #6a6b83ff; }
           .label { font-weight: 600; }
           .label1 { font-weight: 600; margin-left:250px;}
@@ -237,9 +240,9 @@ export default function PatientDetails({ id: propId, inline = false }) {
           th,td { border:1px solid #ccccccff; padding:3px; text-align:center; }
           th { background:#f0f5ff; }
           .section { margin-top:10px; }
-          .footer { text-align:right; font-family: 'Dancing Script', cursive;font-size:11px; color:#777; margin-top:20px; }
-          .doctor-details { background-color: #f7e0e7ff; padding: 10px; border-radius: 8px; }
-          .doctor-symbol { position: absolute; top: 0px; left: 20px; z-index: 10; font-size: 81px; color: red; }
+          .footer { text-align:right; font-family: 'Dancing Script', cursive;font-size:11px; color: #573af8ff; margin-top:20px; }
+          .doctor-details { background-color: #f7e0f2ff; padding: 10px; border-radius: 8px; }
+          .doctor-symbol { position: absolute; top: 0px; left: 40px; z-index: 10; font-size: 100px; color: red; }
 
           /* --- Ensure background colors print --- */
           @media print {
@@ -263,8 +266,9 @@ export default function PatientDetails({ id: propId, inline = false }) {
         <div class="swasthasya"><b>स्वस्थस्य <br> स्वास्थ्य <br> रक्षणम् ||</b></div>
         <div class="doctor-details">
         <div class="clinic"><b> ${docClinicName} </b></div>
-        <div class="clinicAddress"><b>${docClinicAddress}</b></div>
+        <div class="clinicAddress"><b>${docClinicAddress}</b></div><br>
         <div class="doctor-detail"><b> Doctor: </b> ${docName} [${docDegree} (${docSp})]</div>
+        <div><b>Registration Number-  ${docRegNum} </b></div>
         <div><b>Mobile- </b> ${docMobile}</div>
         </div>
         <div class="spacer"></div>
@@ -272,10 +276,11 @@ export default function PatientDetails({ id: propId, inline = false }) {
         <div><span class="label">Visit Date:</span> ${v.visitDate || "-"} <span class="label1">Follow-up Date:</span> ${v.followUpDate || "-"}</div>
         <div><span class="label">Patient Name:</span> ${patient?.firstName || "-"}  ${patient?.lastName || "-"}, &nbsp;
         <b class="label"> (${age} Yrs * ${patient?.bloodGroup || "-"} * ${patient?.weight || "-"} kg * ${patient?.gender || "-"})</b></div>
+        <div><span class="lable">Blood Pressure:</span> ${patient?.bloodPressure || "-"}</div>
         <div class="section">
-          <h4>Prescriptions</h4>
+          <h2>Rx</h2>
           <table>
-            <tr><th>Medicine</th><th>Dose</th><th>M</th><th>A</th><th>E</th><th>BM?</th></tr>
+            <tr><th>Medicine</th><th>Dose</th><th>M/स</th><th>A/दु</th><th>E/रा</th><th>BM/जेआ</th></tr>
             ${(v.prescriptions || []).map(p =>
               `<tr><td>${p.name}</td><td> ${p.dose}</td><td>${p.m ? "✔" : ""}</td><td>${p.a ? "✔" : ""}</td><td>${p.e ? "✔" : ""}</td><td>${p.bl ? "✔" : ""}</td></tr>`
             ).join("")}
@@ -327,6 +332,7 @@ export default function PatientDetails({ id: propId, inline = false }) {
           </div>
           <LabeledInput label="Reason for Visit (Symptoms)*" value={newVisit.reason ?? ""} onChange={(v) => setNewVisit((f) => ({ ...f, reason: v }))} required />
           <LabeledInput label="Diagnosis" value={newVisit.diagnosis ?? ""} onChange={(v) => setNewVisit((f) => ({ ...f, diagnosis: v }))} />
+          <LabeledInput label="BloodPressure" value={newVisit.bloodPressure ?? ""} onChange={(v) => setNewVisit((f) => ({ ...f, bloodPressure: v }))} />  
 
           <h4>Prescriptions</h4>
           <div style={prescriptionRow}>
@@ -407,7 +413,7 @@ export default function PatientDetails({ id: propId, inline = false }) {
             <table style={table}>
               <thead style={thead}>
                 <tr>
-                  <th>Date</th><th>Reason</th><th>Diagnosis</th><th>Notes</th><th>Prescriptions</th><th>Follow-up</th><th>Actions</th>
+                  <th>Date</th><th>Reason</th><th>Diagnosis</th><th>BloodPressure</th><th>Notes</th><th>Prescriptions</th><th>Follow-up</th><th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -416,6 +422,7 @@ export default function PatientDetails({ id: propId, inline = false }) {
                     <td>{v.visitDate || "-"}</td>
                     <td>{v.reason || "-"}</td>
                     <td>{v.diagnosis || "-"}</td>
+                    <td>{v.bloodPressure || "-"}</td>
                     <td>{v.notes || "-"}</td>
                     <td>
                       {(v.prescriptions || []).map((p, i) => (
@@ -443,6 +450,7 @@ export default function PatientDetails({ id: propId, inline = false }) {
             <h3>Edit Visit</h3>
             <LabeledInput label="Reason" value={editingVisit.reason ?? ""} onChange={(v) => setEditingVisit((f) => ({ ...f, reason: v }))} />
             <LabeledInput label="Diagnosis" value={editingVisit.diagnosis ?? ""} onChange={(v) => setEditingVisit((f) => ({ ...f, diagnosis: v }))} />
+            <LabeledInput label="BloodPressure" value={editingVisit.bloodPressure ?? ""} onChange={(v) => setEditingVisit((f) => ({ ...f, bloodPressure: v }))} />
             <LabeledInput label="Notes" value={editingVisit.notes ?? ""} onChange={(v) => setEditingVisit((f) => ({ ...f, notes: v }))} />
             <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
               <button onClick={handleEditSave} style={btnPrimary}>Save</button>

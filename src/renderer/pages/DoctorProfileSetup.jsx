@@ -24,6 +24,7 @@ export default function DoctorProfileSetup() {
   const [message, setMessage] = useState("");
   const [form, setForm] = useState({
     doctorName: "",
+    doctorRegNum: "",
     clinicName: "",
     clinicAddress: "",
     doctorAddress: "",
@@ -71,6 +72,7 @@ export default function DoctorProfileSetup() {
         setForm((p) => ({
           ...p,
           doctorName: data.doctorName || "",
+          doctorRegNum: data.doctorRegNum || "",
           clinicName: data.clinicName || "",
           clinicAddress: data.clinicAddress || "",
           doctorAddress: data.doctorAddress || "",
@@ -123,6 +125,7 @@ export default function DoctorProfileSetup() {
       const ref = doc(adminDb, "DoctorsRegistered", user.email);
       await updateDoc(ref, {
         doctorName: form.doctorName,
+        doctorRegNum: form.doctorRegNum,
         clinicName: form.clinicName,
         clinicAddress: form.clinicAddress,
         doctorAddress: form.doctorAddress,
@@ -143,7 +146,7 @@ export default function DoctorProfileSetup() {
   // Request activation
   const handleRequestActivation = async () => {
     if (!user?.email) return setMessage("Not authenticated.");
-    if (!form.doctorName || !form.clinicName || !form.mobile || !form.degree || !form.specialization) {
+    if (!form.doctorName || !form.doctorRegNum || !form.clinicName || !form.mobile || !form.degree || !form.specialization) {
       return setMessage("Please fill all professional and clinic details before requesting activation.");
     }
     setSaving(true);
@@ -152,6 +155,7 @@ export default function DoctorProfileSetup() {
       const docRef = doc(adminDb, "DoctorsRegistered", user.email);
       await updateDoc(docRef, {
         doctorName: form.doctorName,
+        doctorRegNum: form.doctorRegNum,
         clinicName: form.clinicName,
         clinicAddress: form.clinicAddress,
         doctorAddress: form.doctorAddress,
@@ -167,6 +171,7 @@ export default function DoctorProfileSetup() {
       await setDoc(reqRef, {
         doctorEmail: user.email,
         doctorName: form.doctorName,
+        doctorRegNum: form.doctorRegNum,
         clinicName: form.clinicName,
         mobile: form.mobile,
         degree: form.degree,
@@ -246,6 +251,7 @@ export default function DoctorProfileSetup() {
 
         <div style={{ display: "grid", gap: 8 }}>
           <input style={input} placeholder="Doctor Name" value={form.doctorName} onChange={(e) => onChange("doctorName", e.target.value)} />
+          <input style={input} placeholder="Doctor Registration Number" value={form.doctorRegNum} onChange={(e) => onChange("doctorRegNum", e.target.value)} />
           <input style={input} placeholder="Degree (e.g. MBBS, MD)" value={form.degree} onChange={(e) => onChange("degree", e.target.value)} />
           <input style={input} placeholder="Specialization (e.g. Pediatrics, Cardiology)" value={form.specialization} onChange={(e) => onChange("specialization", e.target.value)} />
           <input style={input} placeholder="Experience (Years)" type="number" value={form.experienceYears} onChange={(e) => onChange("experienceYears", e.target.value)} />
