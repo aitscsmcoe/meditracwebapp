@@ -213,7 +213,7 @@ export default function DoctorDashboard() {
   // ---------- Logout / Refresh ----------
   const handleLogout = async () => {
     await signOut(adminAuth);
-    localStorage.clear();
+    // localStorage.clear();
     window.location.replace("/");
     setTimeout(() => window.location.reload(), 120);
   };

@@ -229,10 +229,10 @@ export default function PatientDetails({ id: propId, inline = false }) {
         <title>Prescription - ${patient?.firstName || ""}</title>
         <style>
           body { font-family:'Segoe UI',sans-serif; padding:24px; border: 4px solid #6a6b83ff;; position:relative; }
-          .clinic {color: #d6148cff; font-size:32px;font-family:Georgia; text-align:center;}
-          .clinicAddress {font-size:16px;font-family:Areal; text-align:center;}
+          .clinic {color: #f70e0eff; font-size:32px;font-family:Georgia; text-align:center;}
+          .clinicAddress {font-size:16px;font-family:Areal; text-align:center;color: #4814d6ff;}
           .doctorName {font-size:18px;font-family:Areal;}
-          .swasthasya { position: absolute; top: %; left: 30%; font-size: 90px; opacity: 0.1; transform: rotate(-45deg); color: orange; font-family: "Georgia", sans-serif; }
+          .swasthasya { position: absolute; top: 30%; left: 25%; font-size: 90px; opacity: 0.1; transform: rotate(-45deg); color: #e96666ff; font-family: "Georgia", sans-serif; }
           .bline{ border:2px solid #6a6b83ff; }
           .label { font-weight: 600; }
           .label1 { font-weight: 600; margin-left:250px;}
@@ -241,7 +241,7 @@ export default function PatientDetails({ id: propId, inline = false }) {
           th { background:#f0f5ff; }
           .section { margin-top:10px; }
           .footer { text-align:right; font-family: 'Dancing Script', cursive;font-size:11px; color: #573af8ff; margin-top:20px; }
-          .doctor-details { background-color: #f7e0f2ff; padding: 10px; border-radius: 8px; }
+          .doctor-details { background-color: #f5a3f5ff; padding: 10px; border-radius: 8px; }
           .doctor-symbol { position: absolute; top: 0px; left: 40px; z-index: 10; font-size: 100px; color: red; }
 
           /* --- Ensure background colors print --- */
@@ -276,8 +276,8 @@ export default function PatientDetails({ id: propId, inline = false }) {
         <div><span class="label">Visit Date:</span> ${v.visitDate || "-"} <span class="label1">Follow-up Date:</span> ${v.followUpDate || "-"}</div>
         <div><span class="label">Patient Name:</span> ${patient?.firstName || "-"}  ${patient?.lastName || "-"}, &nbsp;
         <b class="label"> (${age} Yrs * ${patient?.bloodGroup || "-"} * ${patient?.weight || "-"} kg * ${patient?.gender || "-"})</b></div>
-        <div><span class="lable">Blood Pressure:</span> ${patient?.bloodPressure || "-"}</div>
         <div class="section">
+        ${v.bloodPressure ? `<div class="section"><span class="label">Blood Pressure::</span> ${v.bloodPressure}</div>` : ""}
           <h2>Rx</h2>
           <table>
             <tr><th>Medicine</th><th>Dose</th><th>M/स</th><th>A/दु</th><th>E/रा</th><th>BM/जेआ</th></tr>
